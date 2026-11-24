@@ -281,5 +281,16 @@ fn run_shadow_selftest() {
     check!(ring.total_bytes <= QUARANTINE_MAX_BYTES);
     drop(ring);
 
+    // Large slots force eviction by byte budget while many small slots remain.
+    for value in 0..16u8 {
+        let item = alloc::vec![value; 512 * 1024].into_boxed_slice();
+        check!(item[0] == value && item[item.len() - 1] == value);
+        check_clear!(item.as_ptr().addr(), item.len());
+        drop(item);
+        let ring = QUARANTINE.lock();
+        check!(ring.len <= QUARANTINE_MAX_SLOTS);
+        check!(ring.total_bytes <= QUARANTINE_MAX_BYTES);
+    }
+
     crate::early_println!("[kasan-selftest] shadow passed checks={}", checks);
 }
