@@ -6,6 +6,7 @@ use x86_64::registers::rflags::{self, RFlags};
 
 // FIXME: Mark this as unsafe. See
 // <https://github.com/asterinas/asterinas/issues/1120#issuecomment-2748696592>.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) fn enable_local() {
     x86_64::instructions::interrupts::enable();
     // When emulated with QEMU, interrupts may not be delivered if a STI instruction is immediately
@@ -37,11 +38,13 @@ pub(crate) fn enable_local_and_halt() {
     };
 }
 
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) fn disable_local() {
     x86_64::instructions::interrupts::disable();
 }
 
 /// Disables local IRQs and halts the CPU forever.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) fn disable_local_and_halt() -> ! {
     x86_64::instructions::interrupts::disable();
     loop {
@@ -49,6 +52,7 @@ pub(crate) fn disable_local_and_halt() -> ! {
     }
 }
 
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) fn is_local_enabled() -> bool {
     (rflags::read_raw() & RFlags::INTERRUPT_FLAG.bits()) != 0
 }

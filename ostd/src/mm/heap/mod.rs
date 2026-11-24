@@ -62,7 +62,8 @@ unsafe extern "Rust" {
 }
 
 /// Gets the reference to the user-defined global heap allocator.
-fn get_global_heap_allocator() -> &'static dyn GlobalHeapAllocator {
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
+pub(super) fn get_global_heap_allocator() -> &'static dyn GlobalHeapAllocator {
     // SAFETY: This up-call is redirected safely to Rust code by OSDK.
     unsafe { __GLOBAL_HEAP_ALLOCATOR_REF }
 }
@@ -86,6 +87,7 @@ macro_rules! abort_with_message {
 }
 
 #[alloc_error_handler]
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 fn handle_alloc_error(layout: Layout) -> ! {
     abort_with_message!("Heap allocation error, layout = {:#x?}", layout);
 }
@@ -97,6 +99,7 @@ struct AllocDispatch;
 
 // TODO: Somehow restrict unwinding in the user-provided global allocator.
 // Panicking should be fine, but we shouldn't unwind on panics.
+#[cfg(not(feature = "kasan"))]
 unsafe impl GlobalAlloc for AllocDispatch {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let Some(required_slot) = slot_size_from_layout(layout) else {
@@ -147,5 +150,99 @@ unsafe impl GlobalAlloc for AllocDispatch {
                 required_slot,
             );
         }
+    }
+}
+
+#[cfg(feature = "kasan")]
+unsafe impl GlobalAlloc for AllocDispatch {
+    #[sanitize(address = "off")]
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let Some(padded_layout) = crate::mm::kasan::padded_layout(layout) else {
+            return core::ptr::null_mut();
+        };
+        let Some(required_slot) = slot_size_from_layout(padded_layout) else {
+            abort_with_message!(
+                "Heap allocation size not found for layout = {:#x?}",
+                padded_layout
+            );
+        };
+
+        let res = match get_global_heap_allocator().alloc(padded_layout) {
+            Ok(slot) => Ok(slot),
+            Err(_) => {
+                crate::mm::kasan::quarantine_drain();
+                get_global_heap_allocator().alloc(padded_layout)
+            }
+        };
+        let Ok(slot) = res else {
+            return core::ptr::null_mut();
+        };
+
+        if required_slot.size() != slot.size()
+            || slot.size() < padded_layout.size()
+            || !(slot.as_ptr() as Vaddr).is_multiple_of(padded_layout.align())
+        {
+            abort_with_message!(
+                "Heap allocation mismatch: slot ptr = {:p}, size = {:x}; layout = {:#x?}; required_slot = {:#x?}",
+                slot.as_ptr(),
+                slot.size(),
+                padded_layout,
+                required_slot,
+            );
+        }
+
+        let left_rz = crate::mm::kasan::padded_left_redzone(layout);
+        let slot_addr = slot.as_ptr() as usize;
+        crate::mm::kasan::poison_heap_alloc(slot_addr, slot.size(), left_rz, layout.size());
+        // SAFETY: `left_rz + layout.size() <= padded_layout.size() <= slot.size()`.
+        unsafe { slot.as_ptr().add(left_rz) }
+    }
+
+    #[sanitize(address = "off")]
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        // SAFETY: Caller upholds `GlobalAlloc::alloc_zeroed` requirements.
+        let ptr = unsafe { self.alloc(layout) };
+        if !ptr.is_null() && layout.size() > 0 {
+            // SAFETY: `[ptr .. ptr + layout.size())` was just allocated and unpoisoned.
+            unsafe { core::ptr::write_bytes(ptr, 0, layout.size()) };
+        }
+        ptr
+    }
+
+    #[sanitize(address = "off")]
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        let Some(padded_layout) = crate::mm::kasan::padded_layout(layout) else {
+            abort_with_message!(
+                "Heap deallocation layout overflow for layout = {:#x?}",
+                layout
+            );
+        };
+        let Some(required_slot) = slot_size_from_layout(padded_layout) else {
+            abort_with_message!(
+                "Heap deallocation size not found for layout = {:#x?}",
+                padded_layout
+            );
+        };
+
+        let left_rz = crate::mm::kasan::padded_left_redzone(layout);
+        let Some(slot_addr) = (ptr as usize).checked_sub(left_rz) else {
+            abort_with_message!(
+                "Heap deallocation underflow, ptr = {:p}, layout = {:#x?}",
+                ptr,
+                layout
+            );
+        };
+        let Some(slot_nn) = NonNull::new(slot_addr as *mut u8) else {
+            abort_with_message!(
+                "Heap deallocation NULL slot, ptr = {:p}, layout = {:#x?}",
+                ptr,
+                layout
+            );
+        };
+
+        // SAFETY: `slot_nn` and `required_slot` match `padded_layout` deterministically.
+        let slot = unsafe { HeapSlot::new(slot_nn, required_slot) };
+        // SAFETY: Forwarded from `GlobalAlloc::dealloc`.
+        unsafe { crate::mm::kasan::on_heap_free(ptr as usize, layout, slot_addr, slot) };
     }
 }

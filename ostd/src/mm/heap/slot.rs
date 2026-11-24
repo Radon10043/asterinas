@@ -79,6 +79,7 @@ impl HeapSlot {
     /// # Panics
     ///
     /// This function panics if the size is not a multiple of [`PAGE_SIZE`].
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub fn alloc_large(size: usize) -> Result<Self, AllocError> {
         assert_eq!(size % PAGE_SIZE, 0);
         let nframes = size / PAGE_SIZE;
@@ -106,6 +107,7 @@ impl HeapSlot {
     /// This function aborts if the slot was not allocated with
     /// [`HeapSlot::alloc_large`], as it requires specific memory management
     /// operations that only apply to large slots.
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub fn dealloc_large(self) {
         let SlotInfo::LargeSlot(size) = self.info else {
             crate::error!(

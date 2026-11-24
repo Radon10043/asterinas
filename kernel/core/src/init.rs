@@ -146,6 +146,10 @@ fn first_kthread() {
     let init_mnt_ns = MountNamespace::get_init_singleton();
     let fs_resolver = init_mnt_ns.new_path_resolver();
     init_in_first_kthread(&fs_resolver);
+    #[cfg(feature = "kasan")]
+    if let Some(&mode) = KASAN_SELFTEST.get() {
+        ostd::mm::kasan::run_selftest(mode);
+    }
     let boot_init = prepare_boot_init(fs_resolver);
 
     print_banner();
@@ -279,3 +283,8 @@ fn print_banner() {
 }
 
 static BOOT_SOURCE: AtomicU8 = AtomicU8::new(BootSource::Initramfs as u8);
+
+#[cfg(feature = "kasan")]
+static KASAN_SELFTEST: Once<ostd::mm::kasan::SelftestMode> = Once::new();
+#[cfg(feature = "kasan")]
+aster_cmdline::define_kv_param!("kasan_selftest", KASAN_SELFTEST);

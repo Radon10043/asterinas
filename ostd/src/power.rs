@@ -99,6 +99,7 @@ pub fn inject_poweroff_handler(handler: fn(ExitCode)) {
 ///
 /// This function will not return. If the poweroff mechanism fails, this function will halt all CPUs
 /// on the machine.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub fn poweroff(code: ExitCode) -> ! {
     #[cfg(feature = "coverage")]
     crate::coverage::on_system_exit();
@@ -113,6 +114,7 @@ pub fn poweroff(code: ExitCode) -> ! {
     machine_halt();
 }
 
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 fn machine_halt() -> ! {
     crate::error!("Halting the machine...");
 

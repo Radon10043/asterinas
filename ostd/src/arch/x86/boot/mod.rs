@@ -40,6 +40,7 @@ use crate::{
 
 global_asm!(
     include_str!("bsp_boot.S"),
+    KASAN = const cfg!(feature = "kasan") as u8,
     KCODE64 = const super::trap::gdt::KCODE64,
     KDATA = const super::trap::gdt::KDATA,
     KCODE32 = const super::trap::gdt::KCODE32,

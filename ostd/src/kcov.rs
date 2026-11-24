@@ -66,6 +66,7 @@ static ACTIVE_KCOV_TASKS: AtomicUsize = AtomicUsize::new(0);
 static ACTIVE_KCOV_CMP_TASKS: AtomicUsize = AtomicUsize::new(0);
 
 #[inline]
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 fn load_usize_relaxed(atom: &AtomicUsize) -> usize {
     let val: usize;
     let ptr = atom as *const AtomicUsize as *const usize;
@@ -85,6 +86,7 @@ fn load_usize_relaxed(atom: &AtomicUsize) -> usize {
 }
 
 #[inline]
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 fn load_u8_relaxed(atom: &AtomicU8) -> u8 {
     let val: u8;
     let ptr = atom as *const AtomicU8 as *const u8;
@@ -102,6 +104,7 @@ fn load_u8_relaxed(atom: &AtomicU8) -> u8 {
 }
 
 #[inline]
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 fn load_bool_relaxed(atom: &AtomicBool) -> bool {
     let val: u8;
     let ptr = atom as *const AtomicBool as *const u8;
@@ -134,11 +137,13 @@ impl TaskKcov {
     }
 
     #[inline]
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     fn state(&self) -> u8 {
         load_u8_relaxed(&self.state)
     }
 
     #[inline]
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     fn is_attached(&self) -> bool {
         self.state() != STATE_DETACHED
     }
@@ -218,6 +223,7 @@ impl KcovBuffer {
     }
 
     #[inline]
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     fn record(&self, pc: usize) {
         let Ok(count) = self.frames[0].read_once::<usize>(0) else {
             return;
@@ -237,6 +243,7 @@ impl KcovBuffer {
     }
 
     #[inline]
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     fn record_cmp(&self, cmp_type: u64, arg1: u64, arg2: u64, ip: u64) -> bool {
         let Ok(count) = self.frames[0].read_once::<usize>(0) else {
             return false;
@@ -304,6 +311,7 @@ pub struct SyscallGuard(CurrentTask);
 /// Asterinas also runs task-context code when an interrupt returns to
 /// userspace. Limit samples to syscall handling so asynchronous scheduling
 /// and signal checks do not appear in an otherwise idle thread's trace.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub fn enter_syscall() -> Option<SyscallGuard> {
     if load_usize_relaxed(&ACTIVE_KCOV_TASKS) == 0
         && load_usize_relaxed(&ACTIVE_KCOV_CMP_TASKS) == 0
@@ -327,6 +335,7 @@ impl Drop for SyscallGuard {
 }
 
 /// Detaches coverage on task exit, without requiring a surviving file descriptor.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub fn disable_current() {
     let Some(task) = Task::current() else {
         return;
@@ -432,6 +441,7 @@ extern "C" fn __sanitizer_cov_trace_switch() {
     );
 }
 
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 extern "C" fn record_pc(pc: usize) {
     if load_usize_relaxed(&ACTIVE_KCOV_TASKS) == 0 {
         return;
@@ -460,6 +470,7 @@ extern "C" fn record_pc(pc: usize) {
     }
 }
 
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 extern "C" fn record_cmp(arg1: u64, arg2: u64, cmp_type: u64, ip: usize) {
     if load_usize_relaxed(&ACTIVE_KCOV_CMP_TASKS) == 0 {
         return;
@@ -487,6 +498,7 @@ extern "C" fn record_cmp(arg1: u64, arg2: u64, cmp_type: u64, ip: usize) {
     }
 }
 
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 extern "C" fn record_switch(val: u64, cases: *const u64, ip: usize) {
     if load_usize_relaxed(&ACTIVE_KCOV_CMP_TASKS) == 0 || cases.is_null() {
         return;

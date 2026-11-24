@@ -233,12 +233,16 @@ pub(crate) enum MappedItemRef<'a> {
 ///
 /// This function should be called before:
 ///  - any initializer that modifies the kernel page table.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
     info!("Initializing the kernel page table");
 
     // Start to initialize the kernel page table.
     let kpt = PageTable::<KernelPtConfig>::new_kernel_page_table();
     let preempt_guard = disable_preempt();
+
+    #[cfg(all(feature = "kasan", not(target_arch = "loongarch64")))]
+    let linear_end = LINEAR_MAPPING_BASE_VADDR + crate::mm::frame::max_paddr();
 
     // In LoongArch64, we don't need to do linear mappings for the kernel because of DMW0.
     #[cfg(not(target_arch = "loongarch64"))]
@@ -262,9 +266,10 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
     }
 
     // Map the metadata pages.
+    let meta_start_va = mapping::frame_to_meta::<PagingConsts>(crate::mm::frame::min_paddr());
+    let meta_size = meta_pages.size();
     {
-        let start_va = mapping::frame_to_meta::<PagingConsts>(crate::mm::frame::min_paddr());
-        let from = start_va..start_va + meta_pages.size();
+        let from = meta_start_va..meta_start_va + meta_size;
         let prop = PageProperty {
             flags: PageFlags::RW,
             cache: CachePolicy::Writeback,
@@ -285,18 +290,23 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
         }
     }
 
-    // In LoongArch64, we don't need to do linear mappings for the kernel code because of DMW0.
     #[cfg(not(target_arch = "loongarch64"))]
-    // Map for the kernel code itself.
-    // TODO: set separated permissions for each segments in the kernel.
-    {
+    let kernel_range = {
         let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
         let region = regions
             .iter()
             .find(|r| r.typ() == MemoryRegionType::Kernel)
             .unwrap();
         let offset = kernel_loaded_offset();
-        let from = region.base() + offset..region.end() + offset;
+        (region.base(), region.base() + offset..region.end() + offset)
+    };
+
+    // In LoongArch64, we don't need to do linear mappings for the kernel code because of DMW0.
+    #[cfg(not(target_arch = "loongarch64"))]
+    // Map for the kernel code itself.
+    // TODO: set separated permissions for each segments in the kernel.
+    {
+        let (kernel_paddr, ref from) = kernel_range;
         let prop = PageProperty {
             flags: PageFlags::RWX,
             cache: CachePolicy::Writeback,
@@ -304,13 +314,24 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
         };
         let min_level = max_page_level::<KernelPtConfig>(from.len());
         let mut cursor = kpt
-            .cursor_mut_with_min_level(&preempt_guard, &from, min_level)
+            .cursor_mut_with_min_level(&preempt_guard, from, min_level)
             .unwrap();
-        for (pa, level) in largest_pages::<KernelPtConfig>(from.start, region.base(), from.len()) {
+        for (pa, level) in largest_pages::<KernelPtConfig>(from.start, kernel_paddr, from.len()) {
             // SAFETY: We are doing the kernel code mapping.
             unsafe { cursor.map(MappedItem::Untracked(pa, level, prop)) };
         }
     }
+
+    #[cfg(all(feature = "kasan", not(target_arch = "loongarch64")))]
+    super::kasan::init_shadow(
+        &kpt,
+        &preempt_guard,
+        &[
+            (LINEAR_MAPPING_BASE_VADDR, linear_end),
+            (meta_start_va, meta_start_va + meta_size),
+            (kernel_range.1.start, kernel_range.1.end),
+        ],
+    );
 
     KERNEL_PAGE_TABLE.call_once(|| kpt);
 }
@@ -323,6 +344,7 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
 /// # Safety
 ///
 /// This function must only be called once per CPU.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) unsafe fn activate_kernel_page_table() {
     let kpt = KERNEL_PAGE_TABLE
         .get()

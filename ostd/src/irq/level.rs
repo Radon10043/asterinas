@@ -33,6 +33,7 @@ impl !Sync for InterruptLevel {}
 
 impl InterruptLevel {
     /// Returns the current interrupt level of this CPU.
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub fn current() -> Self {
         // Parameters about the encoding of INTERRUPT_LEVEL
         const LEVEL_VAL_OFFSET: u8 = 1;
@@ -80,6 +81,7 @@ impl InterruptLevel {
 ///
 /// The `cpu_priv_at_irq` argument specifies the CPU privilege level of
 /// the code interrupted by the IRQ.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(super) fn enter<F: FnOnce()>(f: F, cpu_priv_at_irq: PrivilegeLevel) {
     let increment = {
         let bit_0 = match cpu_priv_at_irq {

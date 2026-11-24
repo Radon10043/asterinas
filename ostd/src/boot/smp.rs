@@ -134,6 +134,7 @@ pub fn register_ap_entry(entry: fn()) {
 /// - The caller must follow C calling conventions and put the right arguments in registers.
 // SAFETY: The name does not collide with other symbols.
 #[unsafe(no_mangle)]
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) unsafe extern "C" fn ap_early_entry(cpu_id: u32) -> ! {
     // SAFETY:
     // 1. We're in the boot context of an AP.

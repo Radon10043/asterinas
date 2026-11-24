@@ -97,9 +97,15 @@ pub(super) trait UartMut {
 
 impl<T: UartMut> Uart for SpinLock<T, LocalIrqDisabled> {
     fn send(&self, buf: &[u8]) {
+        if ostd::console::is_report_in_progress() {
+            return;
+        }
         let mut uart = self.lock();
 
         for byte in buf {
+            if ostd::console::is_report_in_progress() {
+                return;
+            }
             // TODO: This is termios-specific behavior and should be part of the TTY implementation
             // instead of the serial console implementation. See the ONLCR flag for more details.
             if *byte == b'\n' {

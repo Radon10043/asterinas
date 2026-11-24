@@ -13,6 +13,7 @@ extern crate gimli;
 #[linkage = "weak"]
 // SAFETY: The name does not collide with other symbols.
 #[unsafe(no_mangle)]
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub fn __ostd_panic_handler(info: &core::panic::PanicInfo) -> ! {
     let _irq_guard = crate::irq::disable_local();
 
@@ -36,6 +37,7 @@ pub fn __ostd_panic_handler(info: &core::panic::PanicInfo) -> ! {
 /// Aborts the system.
 ///
 /// This function will first attempt to power off the system. If that fails, it will halt all CPUs.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub fn abort() -> ! {
     // TODO: The main purpose of powering off here is to allow QEMU to exit. Otherwise, the CI may
     // freeze after panicking. However, this is unnecessary and may prevent debugging on a real
@@ -79,7 +81,20 @@ pub use unwinding::panic::{begin_panic, catch_unwind};
 /// Prints the stack trace of the current thread to the console.
 ///
 /// The printing procedure is protected by a spin lock to prevent interleaving.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub fn print_stack_trace() {
+    print_stack_trace_inner(false);
+}
+
+/// Prints the stack trace using lock-bypassing console output for fatal reports.
+#[cfg(feature = "kasan")]
+#[sanitize(address = "off")]
+pub(crate) fn print_stack_trace_force() {
+    print_stack_trace_inner(true);
+}
+
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
+fn print_stack_trace_inner(force: bool) {
     use core::ffi::c_void;
 
     use gimli::Register;
@@ -90,23 +105,62 @@ pub fn print_stack_trace() {
 
     use crate::{early_print, sync::SpinLock};
 
+    macro_rules! trace_print {
+        ($force:expr, $($arg:tt)*) => {{
+            #[cfg(feature = "kasan")]
+            if $force {
+                crate::force_early_print!($($arg)*);
+            } else {
+                early_print!($($arg)*);
+            }
+            #[cfg(not(feature = "kasan"))]
+            {
+                let _ = $force;
+                early_print!($($arg)*);
+            }
+        }};
+    }
+
+    macro_rules! trace_println {
+        ($force:expr, $($arg:tt)*) => {{
+            #[cfg(feature = "kasan")]
+            if $force {
+                crate::force_early_println!($($arg)*);
+            } else {
+                early_println!($($arg)*);
+            }
+            #[cfg(not(feature = "kasan"))]
+            {
+                let _ = $force;
+                early_println!($($arg)*);
+            }
+        }};
+    }
+
     /// We acquire a global lock to prevent the frames in the stack trace from
     /// interleaving. The spin lock is used merely for its simplicity.
     static BACKTRACE_PRINT_LOCK: SpinLock<()> = SpinLock::new(());
-    let _lock = BACKTRACE_PRINT_LOCK.lock();
+    let _lock = if force {
+        BACKTRACE_PRINT_LOCK.try_lock()
+    } else {
+        Some(BACKTRACE_PRINT_LOCK.lock())
+    };
 
-    early_println!("Printing stack trace:");
+    trace_println!(force, "Printing stack trace:");
 
     struct CallbackData {
         counter: usize,
+        force: bool,
     }
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     extern "C" fn callback(unwind_ctx: &UnwindContext<'_>, arg: *mut c_void) -> UnwindReasonCode {
         let data = unsafe { &mut *(arg as *mut CallbackData) };
         data.counter += 1;
         let pc = _Unwind_GetIP(unwind_ctx);
         if pc > 0 {
             let fde_initial_address = _Unwind_FindEnclosingFunction(pc as *mut c_void) as usize;
-            early_println!(
+            trace_println!(
+                data.force,
                 "{:4}: fn {:#18x} - pc {:#18x} / registers:",
                 data.counter,
                 fde_initial_address,
@@ -125,14 +179,19 @@ pub fn print_stack_trace() {
             };
             let reg_val = _Unwind_GetGR(unwind_ctx, i as i32);
             if i.is_multiple_of(4) {
-                early_print!("\n    ");
+                trace_print!(data.force, "\n    ");
             }
-            early_print!(" {} {:#18x};", reg_name.unwrap_or("unknown"), reg_val);
+            trace_print!(
+                data.force,
+                " {} {:#18x};",
+                reg_name.unwrap_or("unknown"),
+                reg_val
+            );
         }
-        early_print!("\n\n");
+        trace_print!(data.force, "\n\n");
         UnwindReasonCode::NO_REASON
     }
 
-    let mut data = CallbackData { counter: 0 };
+    let mut data = CallbackData { counter: 0, force };
     _Unwind_Backtrace(callback, &mut data as *mut _ as _);
 }
