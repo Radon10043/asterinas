@@ -382,6 +382,9 @@ impl SyscallArgument {
 }
 
 pub(crate) fn handle_syscall(ctx: &Context, user_ctx: &mut UserContext) {
+    #[cfg(feature = "kcov")]
+    let _kcov = ostd::kcov::enter_syscall();
+
     let syscall_frame = SyscallArgument::new_from_context(user_ctx);
     let syscall_return = arch::syscall_dispatch(
         syscall_frame.syscall_number,

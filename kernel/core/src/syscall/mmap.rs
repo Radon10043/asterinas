@@ -161,8 +161,7 @@ fn do_sys_mmap(
 
             options = options
                 .may_perms(vm_may_perms)
-                .mappable(&file)?
-                .vmo_offset(offset)
+                .mappable(&file, offset)?
                 .handle_page_faults_around();
 
             options.build()?

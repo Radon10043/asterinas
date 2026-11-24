@@ -43,6 +43,8 @@ use crate::{
 mod cmdline;
 mod cpuinfo;
 mod filesystems;
+#[cfg(feature = "kcov")]
+mod kallsyms;
 mod loadavg;
 mod meminfo;
 mod mounts;
@@ -161,6 +163,12 @@ impl RootDirOps {
             "filesystems",
             InodeType::File,
             FileSystemsFileOps::new_inode,
+        ),
+        #[cfg(feature = "kcov")]
+        (
+            "kallsyms",
+            InodeType::File,
+            kallsyms::KallsymsFileOps::new_inode,
         ),
         ("loadavg", InodeType::File, LoadAvgFileOps::new_inode),
         ("meminfo", InodeType::File, MemInfoFileOps::new_inode),
