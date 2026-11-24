@@ -37,6 +37,50 @@ The OSTD suites each reported three hardware-dependent subcase skips:
 The 14 ignored host items are rustdoc examples requiring surrounding macro,
 module or kernel context; they are not executable ignored unit tests.
 
+## VMX/EPT host capability check
+
+On 2026-11-25, the validation host was checked for the three OSTD
+hardware-dependent subcases listed above.
+
+| Check | Observed value |
+| --- | --- |
+| Host CPU | AMD EPYC 7H12 64-Core Processor |
+| Host environment | Bare metal (`systemd-detect-virt`: `none`) |
+| Host CPU flags | `svm` and `npt` present; `vmx` absent |
+| KVM driver | `kvm_amd` |
+| AMD nested virtualization | `/sys/module/kvm_amd/parameters/nested = 1` |
+| AMD nested paging | `/sys/module/kvm_amd/parameters/npt = Y` |
+| QEMU KVM guest CPU | `svm=true`, `npt=true`, `vmx=false`, `vmx-ept=false` |
+| KVM with required VMX | Initialization rejected, exit 1 |
+| QEMU 8.2.2 TCG with required VMX | Initialization rejected, exit 1 |
+
+The guest features were obtained through QMP
+`query-cpu-model-expansion` with `type=full` and `model.name=host`.
+The two capability checks used `-accel kvm -cpu host,vmx=on,enforce`
+and `-accel tcg -cpu max,vmx=on,enforce`. Both ran with `-S`,
+`-nodefaults` and no guest disks. KVM reported that the host cannot
+provide CPUID VMX; TCG reported that it does not implement that feature.
+
+AMD SVM/NPT is already enabled on this server. These OSTD subcases require
+Intel VMX/EPT, which the current host and QEMU execution modes cannot
+provide. Their status remains skipped, and the test totals are unchanged.
+
+The two VMX lifecycle tests require CPUID leaf 1 ECX bit 5 and execute
+VMX/VMCS operations. The mapping test uses EPT and INVEPT. Its capabilities
+include four-level EPT walks, write-back memory and all-context INVEPT.
+VMX initialization also validates the VMX control MSRs and permission to
+enter VMX outside SMX.
+
+To execute these subcases, use an Intel host satisfying those requirements,
+enable nested virtualization in `kvm_intel`, and expose VMX/EPT to the
+guest. Rerun both the default and instrumented OSTD suites, checking the
+named subcases for successful execution without skip messages. Record that
+host's CPU features, KVM parameters, image hashes and serial output.
+
+The native-server observations and QEMU output are retained under
+`/root/SyzOxide/.workdir/kcov-expanded/vmx-capability/` as
+`host.json`, `results.json` and per-command output files.
+
 ## Environment
 
 | Setting | Value |

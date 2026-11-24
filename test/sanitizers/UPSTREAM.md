@@ -51,3 +51,13 @@ Refresh image hashes and per-boot result tables from that source revision.
 The current integration results include all 35 workspace default members,
 strict feature checks and a complete repository check. State any
 hardware-dependent skips explicitly in the upstream test description.
+
+
+For complete VMX/EPT coverage, run the default and instrumented OSTD suites
+on an Intel VMX/EPT host with KVM nested virtualization enabled and the
+required guest CPU features exposed. Confirm that
+`multiple_vmx_guards_lifecycle`, `switch_and_reuse_vmcs` and
+`guest_mapping_lifecycle` execute without skip messages. The current AMD
+validation host has SVM/NPT enabled and cannot provide these Intel features
+through its KVM or QEMU 8.2.2 TCG configuration. Retain the explicit skips
+until successful executions are recorded.
