@@ -5,7 +5,7 @@ use core::num::NonZeroUsize;
 use super::{MappedMemory, MappedVmo, RssDelta, VmMapping, Vmar};
 use crate::{
     fs::{
-        file::{FileLike, MappableObject},
+        file::{FileLike, InodeType, MappableObject},
         ramfs::memfd::MemfdInode,
     },
     prelude::*,
@@ -230,7 +230,7 @@ impl<'a, 'b> VmarMapOptions<'a, 'b> {
     /// mappable object of [`Mappable`].
     ///
     /// [`Mappable`]: crate::fs::file::Mappable
-    pub(crate) fn mappable(mut self, file: &'b Arc<dyn FileLike>) -> Result<Self> {
+    pub(crate) fn mappable(mut self, file: &'b Arc<dyn FileLike>, offset: usize) -> Result<Self> {
         if self.mappable.is_some() {
             panic!("Cannot set `mappable` when `mappable` is already set");
         }
@@ -238,11 +238,15 @@ impl<'a, 'b> VmarMapOptions<'a, 'b> {
             panic!("Cannot set `mappable` when `file` is already set");
         }
 
-        let mappable = file.mappable(FileMmapRequest::new(self.map_mode.is_shared()))?;
+        let mappable = file.mappable(FileMmapRequest {
+            is_shared: self.map_mode.is_shared(),
+            offset,
+            size: self.size,
+        })?;
         self.mappable = Some(mappable);
         self.file = Some(file.clone());
 
-        Ok(self)
+        Ok(self.vmo_offset(offset))
     }
 
     /// Creates the mapping and adds it to the parent VMAR.
@@ -331,7 +335,16 @@ impl<'a, 'b> VmarMapOptions<'a, 'b> {
                 let path = file.as_ref().map(|file| file.path());
 
                 if let Some(path) = path {
-                    debug_assert!(Arc::ptr_eq(&vmo, &path.inode().page_cache().unwrap()));
+                    // Character devices may supply their own VMO rather than
+                    // an inode page cache. Regular files must still have a
+                    // matching page cache.
+                    debug_assert!({
+                        let inode = path.inode();
+                        match inode.page_cache() {
+                            Some(page_cache) => Arc::ptr_eq(&vmo, &page_cache),
+                            None => inode.type_() == InodeType::CharDevice,
+                        }
+                    });
                 }
 
                 let is_writable_tracked = if let Some(path) = path
@@ -460,11 +473,19 @@ impl<'a, 'b> VmarMapOptions<'a, 'b> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FileMmapRequest {
     is_shared: bool,
+    offset: usize,
+    size: usize,
 }
 
 impl FileMmapRequest {
-    pub(crate) const fn new(is_shared: bool) -> Self {
-        Self { is_shared }
+    /// Returns the byte offset in the opened file.
+    pub const fn offset(self) -> usize {
+        self.offset
+    }
+
+    /// Returns the page-rounded mapping length in bytes.
+    pub const fn size(self) -> usize {
+        self.size
     }
 
     /// Returns whether the mapping uses shared semantics.

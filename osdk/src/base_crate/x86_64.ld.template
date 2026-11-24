@@ -96,7 +96,10 @@ SECTIONS
     . = LOADADDR(.ap_boot) + SIZEOF(.ap_boot) + KERNEL_VMA;
 
     .text                   : AT(ADDR(.text) - KERNEL_VMA) {
+        _stext = .;
+        __stext = .;
         *(.text .text.*)
+        _etext = .;
         PROVIDE(__etext = .);
     } : text
 

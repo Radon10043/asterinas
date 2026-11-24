@@ -39,6 +39,8 @@ pub mod cpu;
 mod error;
 pub mod io;
 pub mod irq;
+#[cfg(feature = "kcov")]
+pub mod kcov;
 pub mod log;
 pub mod mm;
 pub mod panic;

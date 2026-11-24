@@ -60,6 +60,10 @@ fn exit_internal(
     let thread_local = current_task.as_thread_local().unwrap();
     let posix_process = posix_thread.process();
 
+    // Release the trace buffer before another thread can observe this exit.
+    #[cfg(feature = "kcov")]
+    ostd::kcov::disable_current();
+
     let is_last_thread = {
         let mut tasks = posix_process.tasks().lock();
         let has_exited_group = tasks.has_exited_group();
