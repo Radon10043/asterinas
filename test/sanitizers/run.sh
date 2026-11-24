@@ -20,6 +20,8 @@ grub=${GRUB_MKSTANDALONE:-grub-mkstandalone}
 modules=${GRUB_MODULES:-/usr/lib/grub/x86_64-efi}
 firmware=${OVMF_DIR:-/usr/share/OVMF}
 repeat=${REPEAT:-5}
+memory=${MEMORY_MIB:-2048}
+[[ "$memory" =~ ^[1-9][0-9]*$ ]]
 [[ "$repeat" =~ ^[1-9][0-9]*$ ]]
 read -r -a cpus <<< "${CPUS:-1 2 4}"
 for cpu in "${cpus[@]}"; do [[ "$cpu" =~ ^[1-9][0-9]*$ ]]; done
@@ -27,6 +29,7 @@ printf 'mode\tcase\tcpus\trun\texit\tresult\n' > "$output/results.tsv"
 sha256sum "$image" "$initrd" > "$output/inputs.sha256"
 qemu_extra=()
 if [[ -n "${QEMU_DATA_DIR:-}" ]]; then qemu_extra=(-L "$QEMU_DATA_DIR"); fi
+printf 'memory_mib=%s\ncpus=%s\nrepeat=%s\n' "$memory" "${cpus[*]}" "$repeat" > "$output/config.txt"
 failures=0
 for test_case in "${cases[@]}"; do
     template="$output/$test_case"
@@ -51,7 +54,7 @@ CFG
             cp "$initrd" "$dir/efi/initrd"
             cp "$firmware/OVMF_VARS_4M.fd" "$dir/vars.fd"
             status=0
-            timeout -k 5 120 "$qemu" "${qemu_extra[@]}" -accel kvm -machine q35,kernel-irqchip=split -cpu host -smp "$cpu" -m 2048 -display none -serial stdio -monitor none -no-reboot -nic none \
+            timeout -k 5 120 "$qemu" "${qemu_extra[@]}" -accel kvm -machine q35,kernel-irqchip=split -cpu host -smp "$cpu" -m "$memory" -display none -serial stdio -monitor none -no-reboot -nic none \
                 -drive "if=pflash,format=raw,unit=0,readonly=on,file=$firmware/OVMF_CODE_4M.fd" \
                 -drive "if=pflash,format=raw,unit=1,file=$dir/vars.fd" \
                 -drive "file=fat:rw:$dir/efi,format=raw,if=ide" \
