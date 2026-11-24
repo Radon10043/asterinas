@@ -64,7 +64,7 @@ the QEMU debug exit device. A deliberate KASAN diagnostic returns 65.
 | Case | Verification |
 | --- | --- |
 | normal | KCOV guest regression or disabled-interface checks, followed by the workload |
-| shadow | More than 30,000 shadow assertions, followed by the normal guest checks |
+| shadow | 347,405 shadow assertions, followed by the normal guest checks |
 | oob | Compiler-instrumented read of a byte marked as a heap redzone |
 | partial | Compiler-instrumented write to an inaccessible partial-granule byte |
 | uaf | Read callback checking the shadow of an actually freed, quarantined allocation |
@@ -95,3 +95,24 @@ and partial transfers. Files, descriptors and mappings are cleaned up.
 The four configurations produce 210 boots with the default settings.
 There are 90 successful workload boots, totaling 184,320 thread-rounds, and
 120 boots that must terminate with their selected KASAN diagnostic.
+
+
+## Repository checks
+
+Run the host suite, repository checks and workspace kernel tests in the
+repository development environment:
+
+```bash
+make test
+make check
+make ktest
+```
+
+The workspace kernel tests use the default single-vCPU configuration and
+the test disk images, including an NVMe device. The sanitizer boot tests
+above separately exercise 1, 2 and 4 vCPUs.
+
+The validation server also runs OSTD and `aster-core` kernel tests with
+both `kcov,kasan` features, address/coverage instrumentation and two vCPUs.
+[TEST-RESULTS.md](TEST-RESULTS.md) records the exact native-host commands,
+tool versions, test counts and retained launchers.

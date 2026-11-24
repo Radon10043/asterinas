@@ -41,3 +41,13 @@ when preparing the submission.
 - [Contribution process](../../book/src/to-contribute/coding-guidelines/for-maintainability/process.md)
 - [Testing guidelines](../../book/src/to-contribute/coding-guidelines/for-development/testing.md)
 - [Boterinas review commands](../../book/src/to-contribute/boterinas.md)
+
+
+Before updating an upstream PR, rerun the four sanitizer configurations,
+the full default workspace kernel suite and both instrumented unit suites.
+Use one vCPU and the required virtual disks for the default workspace suite;
+use the documented multi-vCPU configurations for sanitizer regressions.
+Refresh image hashes and per-boot result tables from that source revision.
+The current integration results include all 35 workspace default members,
+strict feature checks and a complete repository check. State any
+hardware-dependent skips explicitly in the upstream test description.
