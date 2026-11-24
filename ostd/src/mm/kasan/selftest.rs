@@ -214,5 +214,72 @@ fn run_shadow_selftest() {
         check_poisoned!(partial_base, 1, partial_base, KASAN_SLAB_FREE);
     }
 
+    for align in [1, 8, 16, 64, PAGE_SIZE] {
+        for size in [1, 7, 8, 9, 15, 16, 17, 63, 64, 65, 4095, 4096, 4097, 8193] {
+            let layout = Layout::from_size_align(size, align).unwrap();
+            // SAFETY: Layout has a nonzero size and valid alignment.
+            let mut ptr = unsafe { alloc::alloc::alloc_zeroed(layout) };
+            check!(!ptr.is_null());
+            check!(ptr.addr() % align == 0);
+            check_clear!(ptr.addr(), size);
+            for i in 0..size {
+                // SAFETY: The successful allocation contains exactly size bytes.
+                unsafe {
+                    check!(*ptr.add(i) == 0);
+                    *ptr.add(i) = (i % 251) as u8;
+                }
+            }
+            let left = ptr.addr() - 1;
+            check_poisoned!(left, 1, left, KASAN_SLAB_REDZONE);
+            let tail = ptr.addr() + size;
+            let tag = if size % 8 == 0 {
+                KASAN_SLAB_REDZONE
+            } else {
+                (size % 8) as u8
+            };
+            check_poisoned!(tail, 1, tail, tag);
+            let grown = size + 33;
+            // SAFETY: ptr owns the live allocation with the matching layout.
+            ptr = unsafe { alloc::alloc::realloc(ptr, layout, grown) };
+            check!(!ptr.is_null());
+            check!(ptr.addr() % align == 0);
+            check_clear!(ptr.addr(), grown);
+            for i in 0..grown {
+                // SAFETY: The reallocated object contains grown bytes.
+                unsafe {
+                    if i < size {
+                        check!(*ptr.add(i) == (i % 251) as u8);
+                    }
+                    *ptr.add(i) = (i % 239) as u8;
+                }
+            }
+            let grown_layout = Layout::from_size_align(grown, align).unwrap();
+            // SAFETY: ptr owns the grown allocation and size is nonzero.
+            ptr = unsafe { alloc::alloc::realloc(ptr, grown_layout, size) };
+            check!(!ptr.is_null());
+            check!(ptr.addr() % align == 0);
+            check_clear!(ptr.addr(), size);
+            for i in 0..size {
+                // SAFETY: The shrunken allocation contains size bytes.
+                check!(unsafe { *ptr.add(i) } == (i % 239) as u8);
+            }
+            let addr = ptr.addr();
+            check_poisoned!(addr + size, 1, addr + size, tag);
+            // SAFETY: ptr is live and layout matches its current size/alignment.
+            unsafe { alloc::alloc::dealloc(ptr, layout) };
+            check_poisoned!(addr, 1, addr, KASAN_SLAB_FREE);
+        }
+    }
+
+    for value in 0..5000u64 {
+        let item = alloc::boxed::Box::new(value);
+        check!(*item == value);
+        drop(item);
+    }
+    let ring = QUARANTINE.lock();
+    check!(ring.len <= QUARANTINE_MAX_SLOTS);
+    check!(ring.total_bytes <= QUARANTINE_MAX_BYTES);
+    drop(ring);
+
     crate::early_println!("[kasan-selftest] shadow passed checks={}", checks);
 }
