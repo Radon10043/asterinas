@@ -163,9 +163,7 @@ fn run_shadow_selftest() {
     while boundary < end {
         check_clear!(boundary - 1, 2);
         if boundary >= base + 32 && boundary + 32 <= end {
-            if boundary >= base + 32 && boundary + 32 <= end {
-                check_clear!(boundary - 32, 64);
-            }
+            check_clear!(boundary - 32, 64);
         }
         boundary += PAGE_SIZE;
     }

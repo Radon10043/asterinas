@@ -240,11 +240,11 @@ impl TaskOptions {
             ctx: SyncUnsafeCell::new(ctx),
             kstack,
             switched_to_cpu: AtomicBool::new(false),
-            #[cfg(feature = "kcov")]
-            kcov: crate::kcov::TaskKcov::new(),
             schedule_info: TaskScheduleInfo {
                 cpu: AtomicCpuId::default(),
             },
+            #[cfg(feature = "kcov")]
+            kcov: crate::kcov::TaskKcov::new(),
         };
 
         Ok(new_task)

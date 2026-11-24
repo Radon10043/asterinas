@@ -323,20 +323,20 @@ pub(super) fn init_shadow(
         let mut va = shadow_start;
         while va < shadow_end {
             let remaining_pages = (shadow_end - va) / PAGE_SIZE;
-            if remaining_pages >= 512 {
-                if let Ok(segment) = FrameAllocOptions::new().zeroed(true).alloc_segment(512) {
-                    let chunk_end = va + 512 * PAGE_SIZE;
-                    let mut cursor = kpt
-                        .cursor_mut_with_min_level(preempt_guard, &(va..chunk_end), 1)
-                        .unwrap();
-                    let pa_range = segment.into_raw();
-                    for pa in (pa_range.start..pa_range.end).step_by(PAGE_SIZE) {
-                        // SAFETY: Mapping freshly allocated, zeroed KASAN shadow frames.
-                        unsafe { cursor.map(MappedItem::Untracked(pa, 1, prop)) };
-                    }
-                    va = chunk_end;
-                    continue;
+            if remaining_pages >= 512
+                && let Ok(segment) = FrameAllocOptions::new().zeroed(true).alloc_segment(512)
+            {
+                let chunk_end = va + 512 * PAGE_SIZE;
+                let mut cursor = kpt
+                    .cursor_mut_with_min_level(preempt_guard, &(va..chunk_end), 1)
+                    .unwrap();
+                let pa_range = segment.into_raw();
+                for pa in (pa_range.start..pa_range.end).step_by(PAGE_SIZE) {
+                    // SAFETY: Mapping freshly allocated, zeroed KASAN shadow frames.
+                    unsafe { cursor.map(MappedItem::Untracked(pa, 1, prop)) };
                 }
+                va = chunk_end;
+                continue;
             }
 
             let frame = FrameAllocOptions::new().zeroed(true).alloc_frame().unwrap();
