@@ -22,6 +22,7 @@ for mode in off kcov kasan both; do
     test/sanitizers/build-kernel.sh "$mode"
 done
 test/sanitizers/check-symbols.sh
+test/sanitizers/check-wrapper.sh
 ```
 
 The build script sets dev optimization to 2, `aster-core` optimization to 0,
@@ -47,6 +48,7 @@ done
 Each output directory must be new. Defaults are five repetitions on each of
 1, 2 and 4 vCPUs with 2 GiB RAM and a 120-second timeout per boot.
 Set `REPEAT` and space-separated `CPUS` to change the run count.
+Set `MEMORY_MIB` to change guest memory (default 2048).
 Set `QEMU`, `QEMU_DATA_DIR`, `GRUB_MKSTANDALONE`, `GRUB_MODULES` and
 `OVMF_DIR` for nonstandard installations. Shared library paths may also be
 needed when running an extracted distribution package.
@@ -73,7 +75,10 @@ shadow metadata. The free diagnostics inspect allocator metadata after one
 real free. Each case requires the matching bug category, access description,
 stack trace and failure exit status. The positive shadow test checks actual
 heap allocations, every partial tail tag, aligned and unaligned access,
-granule/64-byte/page crossings, zero lengths and freed tags.
+granule/64-byte/page crossings, zero lengths and freed tags. It also
+checks 70 allocation size/alignment combinations, zeroing, data preservation
+through growth and shrinkage, and quarantine limits after 5,000 small allocations followed by sixteen
+512 KiB allocations.
 
 The KCOV guest program checks real kernel PCs, comparison types and operand
 widths, exact small-buffer capacity, a comparison record crossing a page,
