@@ -56,6 +56,16 @@ The current per-boot records are `review-results.tsv` and
 `kernel-test-results.tsv` in this directory. Keep the matching
 images, ELF files and logs listed in `TEST-RESULTS.md`.
 
+## VMX/EPT coverage
+
+The validation host is an AMD EPYC 7H12 with SVM/NPT and AMD nested
+virtualization enabled. Its KVM guest exposes no Intel VMX/EPT; QEMU 8.2.2
+TCG also rejects required VMX. The three OSTD VMX/EPT subcases remain
+skipped. Run the default and instrumented OSTD suites on an Intel VMX/EPT
+host with nested virtualization enabled to complete these subcases.
+[TEST-RESULTS.md](TEST-RESULTS.md#vmxept-host-capability-check) records the
+host capability checks and required follow-up results.
+
 ## Follow-up review
 
 Review the sanitizer callback ABI, recursion exclusions, allocator accounting
