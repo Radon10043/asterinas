@@ -37,9 +37,24 @@ under `/root/SyzOxide/.workdir/`. `native-build.sh` and `run-all.sh` in
 the retained task directory configure those server-specific paths.
 
 Read [TEST-RESULTS.md](TEST-RESULTS.md) for the tested versions, outcomes
-and remaining checks. Preserve the matching ELF when investigating a report.
+and per-configuration results. Preserve the matching ELF when investigating a report.
 The serial output includes fault PCs, access types and stack traces that
 can be resolved against that ELF.
+
+## Validated source and checks
+
+Kernel and self-test source commit `f68d03d84e537cc87cabe169a9a185282dbf9bb0`
+passed 54 sanitizer regression boots, all 35 default workspace kernel
+executables (522 tests), and the instrumented OSTD/aster-core suites
+(225 and 148 tests). The complete `make check` and host `make test`
+passed. The result tables record hardware-dependent skips separately.
+
+The task directory contains `run-workspace-tests.sh`,
+`run-ostd-sanitizer-final.sh`, `run-core-sanitizer-tests.sh` and
+`clippy-features-strict.sh` for the native-server environment.
+The current per-boot records are `review-results.tsv` and
+`kernel-test-results.tsv` in this directory. Keep the matching
+images, ELF files and logs listed in `TEST-RESULTS.md`.
 
 ## Follow-up review
 
