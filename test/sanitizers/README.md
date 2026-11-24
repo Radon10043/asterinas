@@ -1,0 +1,92 @@
+# KCOV and KASAN regression tests
+
+These tests exercise x86_64 per-task coverage and heap address diagnostics.
+The implementation targets Asterinas commit
+`879e2c51cc3e8776b9b385645c6b0bbe45b7dbd5`.
+
+KCOV records PCs and comparison operands from `aster_core` during the
+attached task's synchronous syscall execution. The root-only `/dev/kcov`
+interface uses a complete shared mapping. KASAN instruments the configured
+kernel crates and OSTD with kernel-address callbacks and 1:8 shadow memory.
+Heap allocations have left and right redzones. Freed slots enter a bounded
+quarantine. Stack and global redzone instrumentation are disabled.
+
+## Build
+
+Use the repository's development environment, pinned Rust toolchain,
+installed `cargo-osdk`, and `VDSO_LIBRARY_DIR`. The test build uses separate
+Cargo target directories for each instrumentation combination.
+
+```bash
+for mode in off kcov kasan both; do
+    test/sanitizers/build-kernel.sh "$mode"
+done
+test/sanitizers/check-symbols.sh
+```
+
+The build script sets dev optimization to 2, `aster-core` optimization to 0,
+64 kernel stack pages and LTO off. Each mode produces
+`target/sanitizers/MODE/osdk/asterinas/asterinas-osdk-bin` and the matching
+unstripped ELF under `target/sanitizers/MODE/x86_64-unknown-none/debug/`.
+
+## Run
+
+Install QEMU with KVM access, OVMF, GRUB's x86_64 EFI modules, a static BusyBox,
+a static C toolchain, binutils, cpio and gzip. Run from the repository root.
+
+```bash
+mkdir -p .workdir/sanitizers
+test/sanitizers/make-initramfs.sh /path/to/static/busybox \
+    .workdir/sanitizers/tests.cpio.gz
+for mode in off kcov kasan both; do
+    test/sanitizers/run.sh "$mode" .workdir/sanitizers/tests.cpio.gz \
+        ".workdir/sanitizers/$mode"
+done
+```
+
+Each output directory must be new. Defaults are five repetitions on each of
+1, 2 and 4 vCPUs with 2 GiB RAM and a 120-second timeout per boot.
+Set `REPEAT` and space-separated `CPUS` to change the run count.
+Set `QEMU`, `QEMU_DATA_DIR`, `GRUB_MKSTANDALONE`, `GRUB_MODULES` and
+`OVMF_DIR` for nonstandard installations. Shared library paths may also be
+needed when running an extracted distribution package.
+
+Every boot has its own FAT tree and OVMF variable file. The runner saves
+`results.tsv`, image/initramfs hashes and individual serial logs. It checks
+the QEMU exit status, expected reports and guest success markers. Any failed
+case makes the runner exit unsuccessfully. Normal shutdown returns 33 through
+the QEMU debug exit device. A deliberate KASAN diagnostic returns 65.
+
+## Cases
+
+| Case | Verification |
+| --- | --- |
+| normal | KCOV guest regression or disabled-interface checks, followed by the workload |
+| shadow | More than 30,000 shadow assertions, followed by the normal guest checks |
+| oob | Compiler-instrumented read of a byte marked as a heap redzone |
+| partial | Compiler-instrumented write to an inaccessible partial-granule byte |
+| uaf | Read callback checking the shadow of an actually freed, quarantined allocation |
+| df | Allocator validation detecting the freed tag of a quarantined allocation |
+
+The access diagnostics use live backing storage with deliberately changed
+shadow metadata. The free diagnostics inspect allocator metadata after one
+real free. Each case requires the matching bug category, access description,
+stack trace and failure exit status. The positive shadow test checks actual
+heap allocations, every partial tail tag, aligned and unaligned access,
+granule/64-byte/page crossings, zero lengths and freed tags.
+
+The KCOV guest program checks real kernel PCs, comparison types and operand
+widths, exact small-buffer capacity, a comparison record crossing a page,
+untouched padding, saturation, reset, access permissions and ioctl errors.
+It also covers independent opens, descriptor duplication, mapping lifetime,
+owner exit, fork handoff and concurrently active PC/CMP sessions. Atomic
+handshakes isolate each thread's writes.
+
+The workload runs eight threads for 256 rounds each. Every round checks
+mapped page boundaries, exchanges a fixed pipe message, and writes and reads
+a thread-specific temporary file. Read/write helpers handle interruptions
+and partial transfers. Files, descriptors and mappings are cleaned up.
+
+The four configurations produce 210 boots with the default settings.
+There are 90 successful workload boots, totaling 184,320 thread-rounds, and
+120 boots that must terminate with their selected KASAN diagnostic.
