@@ -43,6 +43,7 @@ impl<const SLOT_SIZE: usize> SlabSlotList<SLOT_SIZE> {
     ///  - the slot does not come from a slab
     ///    (i.e., `!matches(slot.info(), SlotInfo::SlabSlot(_))`);
     ///  - the size of the slot does not match `SLOT_SIZE`.
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub fn push(&mut self, slot: HeapSlot) {
         let slot_ptr = slot.as_ptr();
         let super::SlotInfo::SlabSlot(slot_size) = slot.info() else {
@@ -61,21 +62,20 @@ impl<const SLOT_SIZE: usize> SlabSlotList<SLOT_SIZE> {
         // SAFETY: A heap slot must be free so the pointer to the slot can be
         // written to. The slot size is at least the size of a pointer.
         unsafe {
-            slot_ptr
-                .cast::<usize>()
-                .write(original_head.map_or(0, |h| h.as_ptr() as usize));
+            *slot_ptr.cast::<usize>() = original_head.map_or(0, |h| h.as_ptr() as usize);
         }
     }
 
     /// Pops a slot from the front of the list.
     ///
     /// It returns `None` if the list is empty.
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub fn pop(&mut self) -> Option<HeapSlot> {
         let original_head = self.head?;
 
         // SAFETY: The head is a valid pointer to a free slot.
         // The slot contains a pointer to the next slot.
-        let next = unsafe { original_head.as_ptr().cast::<usize>().read() } as *mut u8;
+        let next = unsafe { *original_head.as_ptr().cast::<usize>() } as *mut u8;
 
         self.head = if next.is_null() {
             None

@@ -143,6 +143,7 @@ mod current {
         ///
         /// To ensure that the CPU ID is up-to-date, do it under any guards that
         /// implement the [`PinCurrentCpu`] trait.
+        #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
         pub fn current_racy() -> Self {
             #[cfg(debug_assertions)]
             assert!(IS_CURRENT_CPU_INITED.load());
@@ -162,6 +163,7 @@ mod current {
     /// The caller must ensure:
     /// 1. This method is called on each CPU in the boot context.
     /// 2. The CPU ID for the current CPU is correct.
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub(super) unsafe fn init_on_cpu(current_cpu_id: u32) {
         // FIXME: If there are safe APIs that rely on the correctness of
         // the CPU ID for soundness, we'd better make the CPU ID a global
@@ -190,6 +192,7 @@ mod current {
 /// The caller must ensure that
 /// 1. We're in the boot context of the BSP and APs have not yet booted.
 /// 2. The number of CPUs is correct.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(super) unsafe fn init_on_bsp(num_cpus: u32) {
     // SAFETY:
     // 1. We're in the boot context of the BSP.
@@ -235,6 +238,7 @@ unsafe fn init_num_cpus(num_cpus: u32) {
 /// The caller must ensure that:
 /// 1. We're in the boot context of an AP.
 /// 2. The CPU ID of the AP is correct.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(super) unsafe fn init_on_ap(cpu_id: u32) {
     // SAFETY:
     // 1. We're in the boot context of the AP.

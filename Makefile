@@ -22,6 +22,7 @@ NO_DEFAULT_FEATURES ?= 0
 COVERAGE ?= 0
 # Collect per-task coverage of the x86_64 kernel through /dev/kcov.
 KCOV ?= 0
+KASAN ?= 0
 INITRAMFS ?= on
 CMDLINE ?=
 
@@ -232,22 +233,29 @@ ifeq ($(COVERAGE), 1)
 CARGO_OSDK_COMMON_ARGS += --coverage
 endif
 
-ifeq ($(KCOV), 1)
+ifneq ($(filter 1,$(KCOV) $(KASAN)),)
 ifneq ($(TARGET_ARCH), x86_64)
-$(error KCOV currently supports only x86_64)
+$(error KCOV/KASAN currently support only x86_64)
 endif
 ifneq ($(RELEASE_LTO), 0)
-$(error KCOV does not support LTO)
+$(error KCOV/KASAN do not support LTO)
 endif
 KCOV_RUSTC_WRAPPER := $(CURDIR)/tools/kcov-rustc.sh
 ifneq ($(strip $(filter-out $(KCOV_RUSTC_WRAPPER),$(RUSTC_WRAPPER)) $(RUSTC_WORKSPACE_WRAPPER)),)
-$(error KCOV requires exclusive use of the Rust compiler wrapper)
+$(error KCOV/KASAN require exclusive use of the Rust compiler wrapper)
 endif
-CARGO_OSDK_COMMON_ARGS += --features=kcov
+export ASTERINAS_KCOV := $(KCOV)
+export ASTERINAS_KASAN := $(KASAN)
 export RUSTC_WRAPPER := $(KCOV_RUSTC_WRAPPER)
-# Keep the uninstrumented OSTD runtime out of cross-crate LTO.
+# Keep each crate within its instrumentation boundary.
 export CARGO_PROFILE_DEV_LTO := false
 export CARGO_PROFILE_RELEASE_LTO := false
+endif
+ifeq ($(KCOV), 1)
+CARGO_OSDK_COMMON_ARGS += --features=kcov
+endif
+ifeq ($(KASAN), 1)
+CARGO_OSDK_COMMON_ARGS += --features=kasan
 endif
 
 ifdef FEATURES

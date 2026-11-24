@@ -34,6 +34,7 @@ pub(in crate::arch) fn idt_base() -> Vaddr {
 /// The caller should only call this method once in the boot context for each available processor.
 /// This is not a safety requirement, however, because calling this method again will do nothing
 /// more than load the same IDT.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(super) fn init_on_cpu() {
     let idt = GLOBAL_IDT.call_once(|| {
         let mut idt = [const { Entry::missing() }; NUM_INTERRUPTS];

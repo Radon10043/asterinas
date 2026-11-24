@@ -416,6 +416,7 @@ impl<C: PageTableConfig> PageTable<C> {
         }
     }
 
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub(in crate::mm) unsafe fn first_activate_unchecked(&self) {
         // SAFETY: The safety is upheld by the caller.
         unsafe { self.root.first_activate() };

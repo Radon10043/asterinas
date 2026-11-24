@@ -5,6 +5,7 @@
 use x86_64::registers::segmentation::{GS, Segment64};
 
 /// Gets the base address for the CPU local storage by reading the GS base model-specific register.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) fn get_base() -> u64 {
     GS::read_base().as_u64()
 }

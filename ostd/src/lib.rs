@@ -9,6 +9,7 @@
 #![feature(negative_impls)]
 #![feature(ptr_metadata)]
 #![feature(sync_unsafe_cell)]
+#![cfg_attr(feature = "kasan", feature(sanitize))]
 #![cfg_attr(target_arch = "riscv64", feature(riscv_ext_intrinsics))]
 #![cfg_attr(target_arch = "x86_64", feature(iter_advance_by, macro_metavar_expr))]
 #![cfg_attr(target_arch = "aarch64", feature(iter_next_chunk))]
@@ -80,6 +81,7 @@ pub use self::{error::Error, prelude::Result};
 // TODO: We need to refactor this function to make it more modular and
 // make inter-initialization-dependencies more clear and reduce usages of
 // boot stage only global variables.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 unsafe fn init() {
     arch::enable_cpu_features();
 
@@ -117,6 +119,9 @@ unsafe fn init() {
 
     // SAFETY: This function is called only once on the BSP.
     unsafe { mm::kspace::activate_kernel_page_table() };
+
+    #[cfg(feature = "kasan")]
+    mm::kasan::enable();
 
     sync::init();
 

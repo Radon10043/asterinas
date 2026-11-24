@@ -25,6 +25,9 @@ pub fn _print(args: fmt::Arguments) {
     );
     impl Write for Printer<'_> {
         fn write_str(&mut self, s: &str) -> fmt::Result {
+            if ostd::console::is_report_in_progress() {
+                return Ok(());
+            }
             if self.0.is_empty() {
                 ostd::early_print!("{}", s);
             } else {

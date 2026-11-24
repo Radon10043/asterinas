@@ -76,6 +76,7 @@ default = ["cvm_guest"]
 cvm_guest = ["dep:tdx-guest"]
 coverage = ["minicov"]
 kcov = []
+kasan = []
 pvh_boot = []
 riscv_sv39_mode = []
 

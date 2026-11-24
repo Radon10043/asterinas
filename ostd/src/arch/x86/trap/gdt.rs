@@ -40,6 +40,7 @@ use crate::{
 ///
 /// The caller must ensure that no preemption can occur during the method, otherwise we may
 /// accidentally load a wrong GDT and TSS that actually belongs to another CPU.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(super) unsafe fn init_on_cpu() {
     // No races because the caller guarantees that no preemption can occur.
     let gdt = GDT.get_on_cpu(CpuId::current_racy());

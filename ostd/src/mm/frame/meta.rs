@@ -230,6 +230,7 @@ impl MetaSlot {
     ///
     /// The resulting reference count held by the returned pointer is
     /// [`REF_COUNT_UNIQUE`] if `as_unique_ptr` is `true`, otherwise `1`.
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub(super) fn get_from_unused<M: AnyFrameMeta>(
         paddr: Paddr,
         metadata: M,
@@ -250,6 +251,9 @@ impl MetaSlot {
         // SAFETY: The slot now has a reference count of `0`, other threads will
         // not access the metadata slot so it is safe to have a mutable reference.
         unsafe { slot.write_meta(metadata) };
+
+        #[cfg(feature = "kasan")]
+        crate::mm::kasan::unpoison_page(paddr_to_vaddr(paddr));
 
         if as_unique_ptr {
             // No one can create a `Frame` instance directly from the page
@@ -389,12 +393,16 @@ impl MetaSlot {
     /// The caller should ensure that:
     ///  - the reference count is `0` (so we are the sole owner of the frame);
     ///  - the metadata is initialized;
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub(super) unsafe fn drop_last_in_place(&self) {
         // This should be guaranteed as a safety requirement.
         debug_assert_eq!(self.ref_count.load(Ordering::Relaxed), 0);
 
         // SAFETY: The caller ensures safety.
         unsafe { self.drop_meta_in_place() };
+
+        #[cfg(feature = "kasan")]
+        crate::mm::kasan::poison_page_free(paddr_to_vaddr(self.frame_paddr()));
 
         // `Release` pairs with the `Acquire` in `Frame::from_unused` and ensures
         // `drop_meta_in_place` won't be reordered after this memory store.
@@ -453,6 +461,7 @@ impl_frame_meta_for!(MetaPageMeta);
 ///
 /// This function should be called only once and only on the BSP,
 /// before any APs are started.
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub(crate) unsafe fn init() -> Segment<MetaPageMeta> {
     let paddr_range = {
         let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
@@ -538,6 +547,7 @@ fn tracked_paddr_range(regions: &[MemoryRegion]) -> Range<Paddr> {
     min_paddr.align_down(META_PAGE_COVERAGE)..max_paddr
 }
 
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 fn alloc_meta_frames(tot_nr_frames: usize) -> (usize, Paddr) {
     let nr_meta_pages = tot_nr_frames
         .checked_mul(size_of::<MetaSlot>())

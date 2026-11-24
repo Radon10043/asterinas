@@ -16,6 +16,8 @@ pub mod fault;
 pub mod frame;
 pub mod heap;
 pub mod io;
+#[cfg(feature = "kasan")]
+pub mod kasan;
 pub(crate) mod kspace;
 pub(crate) mod mem_obj;
 pub(crate) mod page_prop;

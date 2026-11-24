@@ -70,6 +70,7 @@ impl<const SLOT_SIZE: usize> SlabMeta<SLOT_SIZE> {
     }
 
     /// Allocates a slot from the slab.
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub fn alloc(&mut self) -> Result<HeapSlot, AllocError> {
         let Some(allocated) = self.free_list.pop() else {
             crate::error!("Allocating a slot from a full slab");
@@ -85,6 +86,7 @@ impl<const SLOT_SIZE: usize> Slab<SLOT_SIZE> {
     ///
     /// If the size is less than `SLOT_SIZE` or [`PAGE_SIZE`], the size will be
     /// the maximum of the two.
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub fn new() -> crate::prelude::Result<Self> {
         const { assert!(SLOT_SIZE <= PAGE_SIZE) };
         // To ensure we can store a pointer in each slot.
@@ -104,6 +106,9 @@ impl<const SLOT_SIZE: usize> Slab<SLOT_SIZE> {
         let head_paddr = slab.paddr();
         let head_vaddr = paddr_to_vaddr(head_paddr);
 
+        #[cfg(feature = "kasan")]
+        crate::mm::kasan::poison_slab_free(head_vaddr, PAGE_SIZE);
+
         // Push each slot to the free list.
         for slot_offset in (0..PAGE_SIZE).step_by(SLOT_SIZE) {
             // SAFETY: The slot is within the slab so it can't be NULL.
@@ -120,6 +125,7 @@ impl<const SLOT_SIZE: usize> Slab<SLOT_SIZE> {
     /// Deallocates a slot to the slab.
     ///
     /// If the slot does not belong to the slab it returns [`AllocError`].
+    #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
     pub fn dealloc(&mut self, slot: HeapSlot) -> Result<(), AllocError> {
         if !(self.paddr()..self.paddr() + self.size()).contains(&slot.paddr()) {
             crate::error!("Deallocating a slot to a slab that does not own the slot");
