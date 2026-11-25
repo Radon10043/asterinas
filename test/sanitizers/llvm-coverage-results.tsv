@@ -1,9 +1,0 @@
-action	outcome	cpus	command_exit	qemu_exit	raw_bytes	raw_sha256	target_functions	target_count	profdata_tools_exit	llvm_cov_tools_exit	llvm_cov_warnings_per_command	result
-run	success	1	0	0	3054056	42a150af94feb0f23765e018895055f70186f4d42d163fa4821b50c17f829ea7	kernel_main,coverage_probe	1	0	0	1	PASS
-run	failure	1	1	0	3053544	2565ce27b2b4c65501c479aec94ab7ef6687651314446e1788b3757711c38b45	kernel_main,coverage_probe	1	0	0	1	PASS
-run	success	2	0	0	3054056	bf2aa608d76a34453b17d2e934a2370b051be603a50dc7700de9fdfd88c188cc	kernel_main,coverage_probe	1	0	0	1	PASS
-run	failure	2	1	0	3053544	5b8f95ec62628ee2051ffeb0785e2df0ef1583bc15ba89b0b5b30f5877bf4a23	kernel_main,coverage_probe	1	0	0	1	PASS
-run	success	4	0	0	3054056	3196c737cf32019d54d404741a2b4adf3eaee67ad9b60a42e28c16d5949be2a3	kernel_main,coverage_probe	1	0	0	1	PASS
-run	failure	4	1	0	3053544	e618d2040a3ccf0b2a6d32447c149eecd3ffd90e185604da109b45f0661c2695	kernel_main,coverage_probe	1	0	0	1	PASS
-test	success	1	0	0	4750512	18e96b58a4431e88f2aff0450d47ac41c02b69154d5194eb82258db70ab931bc	coverage_test_case	1	0	0	1	PASS
-test	failure	1	1	0	4750512	93a4b45f3f61a0101cde13ef7be1287554618ffd2bde8c507b5df87921b76453	coverage_test_case	1	0	0	1	PASS

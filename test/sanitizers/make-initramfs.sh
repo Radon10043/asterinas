@@ -9,7 +9,7 @@ fi
 source_dir=$(realpath "$(dirname "$0")/../..")
 busybox=$(realpath "$1")
 output=$(realpath -m "$2")
-test -f "$source_dir/tools/kcov-smoke.c"
+test -f "$source_dir/test/kcov/kcov-smoke.c"
 test -x "$busybox"
 if readelf -l "$busybox" | grep 'INTERP' >/dev/null; then
     echo "The test initramfs requires a statically linked BusyBox." >&2
@@ -21,7 +21,7 @@ trap 'rm -rf -- "$root"; rm -f -- "$archive"' EXIT
 mkdir -p "$root"/{bin,dev,proc,tmp}
 install -m 0755 "$busybox" "$root/bin/busybox"
 flags=(-std=gnu11 -O2 -static -pthread -Wall -Wextra -Werror)
-"${CC:-cc}" "${flags[@]}" "$source_dir/tools/kcov-smoke.c" -o "$root/kcov-smoke"
+"${CC:-cc}" "${flags[@]}" "$source_dir/test/kcov/kcov-smoke.c" -o "$root/kcov-smoke"
 "${CC:-cc}" "${flags[@]}" "$source_dir/test/sanitizers/workload.c" -o "$root/sanitizer-workload"
 cat > "$root/init" <<'INIT'
 #!/bin/busybox sh

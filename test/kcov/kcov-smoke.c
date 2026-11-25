@@ -38,14 +38,13 @@
 _Static_assert(sizeof(unsigned long) == sizeof(uint64_t),
 	       "KCOV x86_64 entries must be 64 bits");
 
-#define REQUIRE(condition)                                                   \
-	do {                                                                 \
+#define REQUIRE(condition)                                                     \
+	do {                                                                   \
 		if (!(condition)) {                                            \
-			fprintf(stderr,                                         \
-				"FAIL line %d: %s (errno=%d: %s)\n",             \
+			fprintf(stderr, "FAIL line %d: %s (errno=%d: %s)\n",   \
 				__LINE__, #condition, errno, strerror(errno)); \
 			exit(EXIT_FAILURE);                                    \
-		}                                                                \
+		}                                                              \
 	} while (0)
 
 static unsigned long text_start, text_end;
@@ -147,20 +146,22 @@ static void *thread_worker(void *argument)
 		__atomic_load_n(&context->area[0], __ATOMIC_ACQUIRE);
 	(void)syscall(SYS_getpid);
 	(void)syscall(SYS_getuid);
-	if (__atomic_load_n(&context->area[0], __ATOMIC_ACQUIRE) != count_before)
+	if (__atomic_load_n(&context->area[0], __ATOMIC_ACQUIRE) !=
+	    count_before)
 		context->count_changed = 1;
 
 	errno = 0;
-	context->enable_result =
-		ioctl(context->fd, KCOV_ENABLE, KCOV_TRACE_PC);
+	context->enable_result = ioctl(context->fd, KCOV_ENABLE, KCOV_TRACE_PC);
 	context->enable_errno = errno;
-	if (__atomic_load_n(&context->area[0], __ATOMIC_ACQUIRE) != count_before)
+	if (__atomic_load_n(&context->area[0], __ATOMIC_ACQUIRE) !=
+	    count_before)
 		context->count_changed = 1;
 
 	errno = 0;
 	context->disable_result = ioctl(context->fd, KCOV_DISABLE, 0);
 	context->disable_errno = errno;
-	if (__atomic_load_n(&context->area[0], __ATOMIC_ACQUIRE) != count_before)
+	if (__atomic_load_n(&context->area[0], __ATOMIC_ACQUIRE) !=
+	    count_before)
 		context->count_changed = 1;
 
 	__atomic_store_n(&context->done, 1, __ATOMIC_RELEASE);
@@ -187,7 +188,8 @@ static void run_thread_isolation(int fd, volatile unsigned long *area)
 	REQUIRE(__atomic_load_n(&area[0], __ATOMIC_ACQUIRE) == 0);
 	REQUIRE(context.count_changed == 0);
 	REQUIRE(context.enable_result == -1 && context.enable_errno == EBUSY);
-	REQUIRE(context.disable_result == -1 && context.disable_errno == EINVAL);
+	REQUIRE(context.disable_result == -1 &&
+		context.disable_errno == EINVAL);
 	REQUIRE(ioctl(fd, KCOV_DISABLE, 0) == 0);
 	REQUIRE(pthread_join(thread, NULL) == 0);
 	REQUIRE(ioctl(fd, KCOV_ENABLE, KCOV_TRACE_PC) == 0);
@@ -207,13 +209,14 @@ static void check_pc_and_reset(volatile unsigned long *area)
 	unsigned long getpid_count = collect_pc(area, SYS_getpid);
 	unsigned long getuid_count = collect_pc(area, SYS_getuid);
 
-	printf("KCOV PC: getpid=%lu entries, getuid=%lu entries\n", getpid_count,
-	       getuid_count);
+	printf("KCOV PC: getpid=%lu entries, getuid=%lu entries\n",
+	       getpid_count, getuid_count);
 
 	__atomic_store_n(&area[0], 0, __ATOMIC_RELAXED);
 	for (unsigned long i = 0; i < KCOV_ENTRIES; i++) {
 		REQUIRE(syscall(SYS_getpid) >= 0);
-		if (__atomic_load_n(&area[0], __ATOMIC_ACQUIRE) == KCOV_PC_LIMIT)
+		if (__atomic_load_n(&area[0], __ATOMIC_ACQUIRE) ==
+		    KCOV_PC_LIMIT)
 			break;
 	}
 	REQUIRE(__atomic_load_n(&area[0], __ATOMIC_ACQUIRE) == KCOV_PC_LIMIT);
@@ -274,13 +277,13 @@ static int open_initialized_kcov(volatile unsigned long **area)
 
 	REQUIRE(fd >= 0);
 	REQUIRE(ioctl(fd, KCOV_INIT_TRACE, KCOV_ENTRIES) == 0);
-	*area = mmap(NULL, KCOV_BYTES, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	*area = mmap(NULL, KCOV_BYTES, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
+		     0);
 	REQUIRE(*area != MAP_FAILED);
 	return fd;
 }
 
-static void run_independent_open_sessions(int fd,
-					  volatile unsigned long *area)
+static void run_independent_open_sessions(int fd, volatile unsigned long *area)
 {
 	volatile unsigned long *other_area;
 	int other_fd = open_initialized_kcov(&other_area);
@@ -364,7 +367,8 @@ static void run_parallel_coverage_sessions(void)
 	int cmp_fd = open_initialized_kcov(&cmp_area);
 	session.pc_fd = open_initialized_kcov(&session.pc_area);
 	pthread_t worker;
-	REQUIRE(pthread_create(&worker, NULL, parallel_pc_worker, &session) == 0);
+	REQUIRE(pthread_create(&worker, NULL, parallel_pc_worker, &session) ==
+		0);
 	REQUIRE(ioctl(cmp_fd, KCOV_ENABLE, KCOV_TRACE_CMP) == 0);
 	wait_for_phase(&session.phase, 1);
 
@@ -381,7 +385,8 @@ static void run_parallel_coverage_sessions(void)
 	__atomic_store_n(&session.phase, 4, __ATOMIC_RELEASE);
 	REQUIRE(ioctl(cmp_fd, KCOV_DISABLE, 0) == 0);
 	REQUIRE(pthread_join(worker, NULL) == 0);
-	printf("KCOV parallel: PC=%lu entries, CMP=%lu records\n", pc_count, cmp_count);
+	printf("KCOV parallel: PC=%lu entries, CMP=%lu records\n", pc_count,
+	       cmp_count);
 	REQUIRE(munmap((void *)session.pc_area, KCOV_BYTES) == 0);
 	REQUIRE(munmap((void *)cmp_area, KCOV_BYTES) == 0);
 	REQUIRE(close(session.pc_fd) == 0);
@@ -406,8 +411,8 @@ static void check_capacity(unsigned long mode, size_t entries,
 	size_t end = 1 + expected_count * record_words;
 	long page_size = sysconf(_SC_PAGESIZE);
 	REQUIRE(page_size > 0);
-	size_t bytes = (entries * sizeof(unsigned long) + page_size - 1)
-		       / page_size * page_size;
+	size_t bytes = (entries * sizeof(unsigned long) + page_size - 1) /
+		       page_size * page_size;
 	size_t map_words = bytes / sizeof(unsigned long);
 	unsigned long *saved = malloc(bytes);
 	REQUIRE(saved != NULL);
@@ -415,8 +420,8 @@ static void check_capacity(unsigned long mode, size_t entries,
 	int fd = open("/dev/kcov", O_RDWR | O_CLOEXEC);
 	REQUIRE(fd >= 0);
 	REQUIRE(ioctl(fd, KCOV_INIT_TRACE, entries) == 0);
-	volatile unsigned long *area = mmap(NULL, bytes, PROT_READ | PROT_WRITE,
-					    MAP_SHARED, fd, 0);
+	volatile unsigned long *area =
+		mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	REQUIRE(area != MAP_FAILED);
 	REQUIRE(ioctl(fd, KCOV_ENABLE, mode) == 0);
 
@@ -426,9 +431,11 @@ static void check_capacity(unsigned long mode, size_t entries,
 			area[i] = marker;
 		__atomic_store_n(&area[0], initial_count, __ATOMIC_RELAXED);
 		trigger_trace(fd, mode);
-		unsigned long count = __atomic_load_n(&area[0], __ATOMIC_ACQUIRE);
+		unsigned long count =
+			__atomic_load_n(&area[0], __ATOMIC_ACQUIRE);
 		if (count != expected_count) {
-			fprintf(stderr, "FAIL: %s buffer of %zu words: expected count %zu, got %lu\n",
+			fprintf(stderr,
+				"FAIL: %s buffer of %zu words: expected count %zu, got %lu\n",
 				mode == KCOV_TRACE_PC ? "PC" : "CMP", entries,
 				expected_count, count);
 			exit(EXIT_FAILURE);
@@ -439,7 +446,8 @@ static void check_capacity(unsigned long mode, size_t entries,
 			REQUIRE(area[i] == marker);
 		if (expected_count > initial_count) {
 			if (mode == KCOV_TRACE_CMP) {
-				REQUIRE((area[first] & ~KCOV_CMP_TYPE_MASK) == 0);
+				REQUIRE((area[first] & ~KCOV_CMP_TYPE_MASK) ==
+					0);
 				REQUIRE(area[first + 1] != marker);
 				REQUIRE(area[first + 2] != marker);
 			}
@@ -471,8 +479,8 @@ static void check_buffer_geometry(void)
 	REQUIRE(page_words % KCOV_CMP_WORDS == 0);
 	size_t records = page_words / KCOV_CMP_WORDS;
 	/* The last record places its PC in the first word of the next page. */
-	check_capacity(KCOV_TRACE_CMP, page_words + KCOV_CMP_WORDS,
-		       records - 1, records);
+	check_capacity(KCOV_TRACE_CMP, page_words + KCOV_CMP_WORDS, records - 1,
+		       records);
 }
 
 static void check_fork_handoff(int fd, volatile unsigned long *area)
@@ -482,7 +490,8 @@ static void check_fork_handoff(int fd, volatile unsigned long *area)
 	REQUIRE(child >= 0);
 	if (child == 0) {
 		REQUIRE(ioctl_fails_with(fd, KCOV_DISABLE, 0, EINVAL));
-		REQUIRE(ioctl_fails_with(fd, KCOV_ENABLE, KCOV_TRACE_PC, EBUSY));
+		REQUIRE(ioctl_fails_with(fd, KCOV_ENABLE, KCOV_TRACE_PC,
+					 EBUSY));
 		_exit(EXIT_SUCCESS);
 	}
 	wait_for_success(child);
@@ -533,7 +542,8 @@ int main(void)
 	REQUIRE(ioctl_fails_with(fd, KCOV_ENABLE, 2, EINVAL));
 
 	errno = 0;
-	area = mmap(NULL, text_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+	area = mmap(NULL, text_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd,
+		    0);
 	REQUIRE(area == MAP_FAILED && errno == EINVAL);
 	errno = 0;
 	area = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -543,7 +553,8 @@ int main(void)
 		    4096);
 	REQUIRE(area == MAP_FAILED && errno == EINVAL);
 
-	area = mmap(NULL, text_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	area = mmap(NULL, text_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
+		    0);
 	REQUIRE(area != MAP_FAILED);
 
 	REQUIRE(ioctl(fd, KCOV_ENABLE, KCOV_TRACE_PC) == 0);
