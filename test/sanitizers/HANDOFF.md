@@ -43,9 +43,10 @@ can be resolved against that ELF.
 
 ## Validated source and checks
 
-Kernel and self-test source commit `f68d03d84e537cc87cabe169a9a185282dbf9bb0`
-has 492 recorded sanitizer guest boots, all passed. The named kernel-test
-audit records 519 completed default-workspace tests, 222 completed
+There are 520 recorded sanitizer guest boots across the revisions listed in
+`TEST-RESULTS.md`, all passed. The latest 28 use
+`2d078e3bd402a8c27aea9ef5f9c238ffe27c68ba`. The full named kernel-test
+audit at `f68d03d84e537cc87cabe169a9a185282dbf9bb0` records 519 completed default-workspace tests, 222 completed
 instrumented OSTD tests and 148 completed instrumented aster-core tests.
 Each OSTD configuration separately records the three VMX/EPT skips.
 The 18 workspace crates without registered tests are listed as zero-test
@@ -78,14 +79,19 @@ host capability checks and required follow-up results.
 
 ## Standalone OSDK checks
 
-OSDK is outside the root workspace. Its 14 unit tests passed; its 22
-integrations produced 21 passes and one failure. Named outcomes are in
-[osdk-test-results.tsv](osdk-test-results.tsv), with execution details in
-[EXECUTION-AUDIT.md](EXECUTION-AUDIT.md). The LLVM
-coverage integration currently fails because `coverage.profraw` is absent
-after the guest exits. The OSDK command returns zero, so retain the
-integration assertion when investigating this export behavior. The
-hypervisor example validates the unavailable-VMX diagnostic on this host.
+OSDK is outside the root workspace. Its 28 unit tests and 23 integrations
+passed. Named outcomes are in [osdk-test-results.tsv](osdk-test-results.tsv),
+with execution details in [EXECUTION-AUDIT.md](EXECUTION-AUDIT.md).
+
+The OSTD coverage hook preserves its profile buffer until OSDK has paused
+QEMU and exported it. The collector validates the monitor response, byte
+count and raw-profile header before publishing `coverage.profraw`.
+Integration tests validate the file with LLVM tools, including exports from
+guests that deliberately report failure. Use matching OSDK and OSTD revisions.
+
+[LLVM-COVERAGE.md](LLVM-COVERAGE.md) records the focused checks and toolchain
+diagnostics. The hypervisor example validates the unavailable-VMX diagnostic
+on this host; the three kernel VMX/EPT tests retain their explicit skips.
 
 ## Follow-up review
 

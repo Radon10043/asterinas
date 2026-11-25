@@ -69,7 +69,8 @@ the OSDK crate is excluded from the root workspace. State its result
 independently of KCOV/KASAN guest tests and distinguish the hypervisor
 example's unavailable-feature diagnostic from VMX execution.
 
-The current native OSDK LLVM coverage integration fails to export
-`coverage.profraw`; require the exported profile as well as process success
-when validating this feature. Refresh that result independently of the
-KCOV/KASAN regression results.
+Run the OSDK coverage integrations with matching OSDK and OSTD revisions.
+Require a fresh profile, successful LLVM merge/show and positive execution
+counts. Verify that a deliberately failed guest still exports a profile
+while returning command status 1. Retain LLVM tool diagnostics with the
+matching profile and ELF files, as described in [LLVM-COVERAGE.md](LLVM-COVERAGE.md).

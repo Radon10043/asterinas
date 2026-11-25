@@ -154,3 +154,7 @@ separately with compiled ELF files and guest tests.
 
 See [EXECUTION-AUDIT.md](EXECUTION-AUDIT.md) for named execution counts,
 standalone OSDK outcomes and checks against incomplete test runs.
+
+[LLVM-COVERAGE.md](LLVM-COVERAGE.md) describes OSDK profile export, real
+profile validation and the current sanitizer regression. Use matching OSDK
+and OSTD revisions when collecting LLVM profiles.

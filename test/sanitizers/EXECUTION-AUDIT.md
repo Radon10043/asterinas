@@ -3,6 +3,9 @@
 This audit ran on 2026-11-25 on SSH host `idcai-60525`.
 Kernel and self-test source: `f68d03d84e537cc87cabe169a9a185282dbf9bb0`.
 Test drivers: `5f41fda99e5c836544f4f66c2cedfb87e18847b8`.
+The subsequent LLVM export follow-up uses
+`2d078e3bd402a8c27aea9ef5f9c238ffe27c68ba`. Its current results are
+recorded in [LLVM-COVERAGE.md](LLVM-COVERAGE.md).
 
 ## Kernel tests
 
@@ -60,9 +63,10 @@ The current driver completed 132 additional real guest boots, all passed:
 [audit-guest-results.tsv](audit-guest-results.tsv) lists every boot.
 
 The earlier 360 boots were also audited against their serial logs, expected
-markers, exit statuses and archived image/initramfs digests. The combined
-record contains 492 sanitizer boots, 16,192,478 shadow assertions and
-401,408 workload thread-rounds. The 37 kernel unit-test boots and OSDK
+markers, exit statuses and archived image/initramfs digests. The LLVM export follow-up adds 28 sanitizer boots, 1,389,620 shadow
+assertions and 24,576 workload thread-rounds. The combined record contains
+520 sanitizer boots, 17,582,098 shadow assertions and 425,984 workload
+thread-rounds. The 37 kernel unit-test boots and OSDK
 integrations are counted separately.
 
 ## Test-driver and host checks
@@ -90,39 +94,33 @@ source.
 
 ## Standalone OSDK
 
-OSDK is excluded from the root workspace. Its 14 host unit tests and 22
-integration tests are therefore tracked separately. The unit tests all passed;
-21 integrations passed and one failed.
-[osdk-test-results.tsv](osdk-test-results.tsv) lists all 36 named outcomes.
-The 13 integrations
-without QEMU passed; the other nine were selected individually with
-`--exact`. `INTEL_TDX` was unset so the three TDX guards did not return
-early.
+OSDK is excluded from the root workspace. Its current suite passed all
+28 host unit tests and all 23 integration tests, with zero failed, ignored
+or filtered tests. [osdk-test-results.tsv](osdk-test-results.tsv) lists all
+51 named outcomes. The integration executable ran once without a name
+filter and with `INTEL_TDX` unset.
 
-The guest tests use the real built `cargo-osdk`, QEMU 8.2.2 and KVM.
+Thirteen integrations run on the host and ten exercise guests. The native
+guest tests use the real built `cargo-osdk`, QEMU 8.2.2 and KVM.
 Task-local adapters select Linux EFI64 boot through GRUB/OVMF, the host CPU,
-no network device and dev optimization level 2. Each test runs in a private
-mount namespace with a task-local `/tmp`. The kernel example uses the
-verified `align_ext 0.1.0` package in the task-local offline vendor directory;
-repository lockfiles are unchanged. QEMU commands, retained images,
-digests, serial output and statuses are saved for each actual boot.
-These results describe that native EFI configuration. The nine selected
-integrations produced eleven guest boots, including three in the workspace
-example. All eleven retained images matched their recorded digests, and
-all eleven QEMU processes returned 33. Successful guest shutdown alone does
-not satisfy the coverage-export assertion.
+no network device and dev optimization level 2. The integration suite runs
+in a private mount namespace with a task-local `/tmp`. The kernel example
+uses the verified `align_ext 0.1.0` package from the offline vendor directory;
+repository lockfiles are unchanged.
 
-The hypervisor example passed its VMX-unavailable diagnostic branch. Its
-output is `Error: VMX is not supported by the VM`; this is not counted as
-VMX/EPT execution. The library example actually ran
+The ten selected guest integrations produced twelve boots, including three
+in the workspace example. The two LLVM coverage cases terminated QEMU
+through QMP with status 0; the other ten QEMU processes returned 33.
+All twelve retained images matched their recorded SHA-256 digests.
+The hypervisor example passed its VMX-unavailable diagnostic branch and is
+not counted as VMX/EPT execution. The library example actually ran
 `mylib::tests::it_works` and reported one passed test.
 
-The LLVM coverage integration currently fails: the guest prints its
-coverage buffer address and size and exits with QEMU status 33, but
-`coverage.profraw` is absent. The integration assertion fails although the
-OSDK command returns zero. The configured `isa-debug-exit` device terminates
-QEMU before the monitor can export the buffer. This result is recorded as a
-failure and is separate from the passing KCOV PC/CMP regressions.
+Both coverage integrations require a fresh profile, successful LLVM
+merge/show and nonzero execution counts. The guest-failure case additionally
+requires command status 1 while retaining a valid profile.
+[LLVM-COVERAGE.md](LLVM-COVERAGE.md) records the focused profile runs,
+retained files and the LLVM mapping diagnostic.
 
 ## Retained files and reproduction
 
@@ -134,14 +132,18 @@ Portable sanitizer commands and the named-auditor invocation are in
   `execution-audit-workspace/` and `core-sanitizer-ktests-final/`.
 - `run-audit-ostd.sh` and `audit-ostd-smp.log` for the two-vCPU OSTD run.
 - `audit-final-*` and `audit-54-*` for the 132 sanitizer boots.
-- `audit-make-test.log`, `audit-make-check-final.log` and
-  `audit-symbols.log`, each with an exit-status `.meta` file.
-- `audit-osdk-host-bin-f68d03d.log`,
-  `audit-osdk-host-integration-f68d03d.log`,
-  `audit-osdk-guest-*.log` and `audit-osdk-guests/guest-*/`.
+- `llvm-coverage-checks/` for current host tests, formatting and Clippy,
+  with command logs and exit-status files.
+- `coverage-fix-regression-*` for the current 28 sanitizer boots, builds
+  and symbol checks.
+- `coverage-integration-full.log` and its `.log.meta` file for all
+  23 OSDK integrations; `coverage-integration-guests.json` identifies the
+  twelve current guest records in `audit-osdk-guests/`.
+- `coverage-regression/artifacts/` for retained LLVM profiles and their
+  matching ELF files, source, tool output, serial logs and command statuses.
 - `run-audit-osdk-guest.sh`, `audit-osdk-command.py` and
   `audit-osdk-qemu.py` for the native OSDK execution environment.
 
 Rerun the standalone OSDK coverage integration when changing profiling or
-shutdown behavior. Require both successful execution and an exported
-profile before reporting that integration as passed.
+shutdown behavior. Require the expected command status, a fresh profile, successful LLVM
+parsing and positive execution counts before reporting a case as passed.
