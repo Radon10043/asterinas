@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MPL-2.0
+__pycache__/
+*.pyc
+output/
+results/
+*.tsv
+*.log
+*.cpio
+*.cpio.gz
+*.iso
+*.fd
+*.sha256
+*-results.json
+/kcov-smoke
+/metadata.json
+/config.json
+*.exit
+*.meta.json
+/serial.txt
+/qemu-exit.txt
+/config.txt
