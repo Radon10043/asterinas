@@ -22,9 +22,29 @@ firmware=${OVMF_DIR:-/usr/share/OVMF}
 repeat=${REPEAT:-5}
 memory=${MEMORY_MIB:-2048}
 [[ "$memory" =~ ^[1-9][0-9]*$ ]]
-[[ "$repeat" =~ ^[1-9][0-9]*$ ]]
-read -r -a cpus <<< "${CPUS:-1 2 4}"
-for cpu in "${cpus[@]}"; do [[ "$cpu" =~ ^[1-9][0-9]*$ ]]; done
+[[ "$repeat" =~ ^[1-9][0-9]{0,8}$ ]]
+cpu_values=${CPUS:-1 2 4}
+if [[ "$cpu_values" == *$'\n'* || "$cpu_values" == *$'\r'* ]]; then
+    echo "CPUS must be a single line of distinct positive integers." >&2
+    exit 2
+fi
+read -r -a cpus <<< "$cpu_values"
+if (("${#cpus[@]}" == 0)); then
+    echo "CPUS must contain at least one CPU count." >&2
+    exit 2
+fi
+declare -A seen_cpus=()
+for cpu in "${cpus[@]}"; do
+    [[ "$cpu" =~ ^[1-9][0-9]*$ ]]
+    if [[ ${seen_cpus[$cpu]+present} ]]; then
+        echo "CPUS must contain distinct CPU counts." >&2
+        exit 2
+    fi
+    seen_cpus[$cpu]=1
+done
+expected_boots=$((${#cases[@]} * ${#cpus[@]} * repeat))
+((expected_boots > 0))
+completed_boots=0
 printf 'mode\tcase\tcpus\trun\texit\tresult\n' > "$output/results.tsv"
 sha256sum "$image" "$initrd" > "$output/inputs.sha256"
 qemu_extra=()
@@ -77,7 +97,7 @@ CFG
                         grep -qxF 'KCOV_OFF_PASS' "$log" || pass=false
                     fi
                     if [[ $test_case == shadow ]]; then
-                        grep -qE '^\[kasan-selftest\] shadow passed checks=[1-9][0-9]{4,}$' "$log" || pass=false
+                        grep -qxF '[kasan-selftest] shadow passed checks=347405' "$log" || pass=false
                     fi
                     if grep -qE 'BUG: KASAN:|FAIL|panicked at' "$log"; then pass=false; fi
                     ;;
@@ -97,10 +117,12 @@ CFG
                     if grep -qE 'KCOV_GUEST_EXIT|panicked at|FAIL' "$log"; then pass=false; fi
                     ;;
             esac
+            completed_boots=$((completed_boots+1))
             result=PASS
             if [[ $pass != true ]]; then result=FAIL; failures=$((failures+1)); fi
             printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$mode" "$test_case" "$cpu" "$run" "$status" "$result" | tee -a "$output/results.tsv"
         done
     done
 done
+test "$completed_boots" = "$expected_boots"
 test "$failures" = 0
