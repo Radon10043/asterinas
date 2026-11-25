@@ -2,31 +2,37 @@
 
 Validation ran on 2026-11-24 and 2026-11-25 on SSH host `idcai-60525`.
 The Asterinas base is `879e2c51cc3e8776b9b385645c6b0bbe45b7dbd5`.
-The kernel and self-test source is
+The source for the complete kernel suites and earlier sanitizer runs is
 `f68d03d84e537cc87cabe169a9a185282dbf9bb0`.
 The execution-audit and test-driver revision is
 `5f41fda99e5c836544f4f66c2cedfb87e18847b8`.
 
-## Latest source results
+The LLVM export implementation and latest 28 sanitizer boots use
+`2d078e3bd402a8c27aea9ef5f9c238ffe27c68ba`.
+
+## Recorded results
 
 | Check | Result |
 | --- | --- |
 | Four sanitizer configurations | All built |
-| Additional sanitizer guest regression | 132/132 boots passed |
+| Execution-audit sanitizer regression | 132/132 boots passed |
+| LLVM export follow-up sanitizer regression | 28/28 boots passed |
 | Default workspace kernel suite | 519 completed, 3 hardware skips, 0 failed, 0 filtered |
 | Instrumented OSTD kernel suite | 222 completed, 3 hardware skips, 0 failed, 0 filtered |
 | Instrumented aster-core kernel suite | 148 passed, 0 failed, 0 filtered |
 | Host `make test` | 68 host tests and 25 doctests passed; 14 documentation examples ignored |
 | Test-driver unit tests | 29 passed |
-| Standalone OSDK unit tests | 14 passed |
-| Standalone OSDK integrations | 21 passed, 1 failed |
-| OSDK LLVM coverage integration | Failed: exported profile absent |
+| Standalone OSDK unit tests | 28 passed |
+| Standalone OSDK integrations | 23 passed, 0 failed, 0 filtered |
+| OSDK LLVM coverage integrations | Normal and failed guest exits both exported readable profiles |
+| Focused LLVM profile cases | 8/8 met expected outcomes; LLVM parsing and target counts verified |
 | Complete `make check` | Exit 0 |
 | Strict feature-enabled Clippy | OSTD and kernel passed |
 | Compiler wrapper argument checks | 1,152 combinations and implicit host invocation passed |
 | ELF instrumentation checks | All four configurations passed |
 
-The default workspace suite booted all 35 default members. Seventeen crates
+The full kernel suites were run at `f68d03d`. The default workspace suite
+booted all 35 default members. Seventeen crates
 contain tests; the other eighteen completed with zero tests. All 35 selected QEMU
 processes returned 33. OSTD ran on two vCPUs and the other crates on one.
 The two remote-CPU interrupt tests completed one and two remote calls,
@@ -153,7 +159,7 @@ small-buffer capacity, page-crossing records, padding, saturation, reset,
 ioctl errors, ownership, descriptor duplication, mapping lifetime, owner
 exit, fork handoff and parallel PC/CMP sessions.
 
-### Latest image SHA-256
+### f68d03d image SHA-256
 
 | Mode | SHA-256 |
 | --- | --- |
@@ -204,6 +210,32 @@ was checked against that run's recorded inputs.
 The test-driver unit tests are synthetic checks and are not included in
 these boot counts.
 
+## LLVM export follow-up
+
+The current OSDK collector and OSTD shutdown protocol are documented in
+[LLVM-COVERAGE.md](LLVM-COVERAGE.md). Both components must use the matching
+source revision.
+
+All four sanitizer configurations were rebuilt at `2d078e3`.
+The 28 boots on 1/2 vCPUs with 2 GiB passed, including 1,389,620 shadow
+assertions and 24,576 workload thread-rounds.
+[coverage-regression-results.tsv](coverage-regression-results.tsv) lists
+every boot. Retained image/initramfs digests and ELF instrumentation checks
+passed for all four modes.
+
+| Mode | Current image SHA-256 |
+| --- | --- |
+| off | `13a203675535dbd0f4d056d9a57fa97ecec847bfc07ff0e9b3ff0177b5b91903` |
+| kcov | `1a2db93ae47d923174c839e3db2bde0e542a5f278ff5d3f393522d97ba3c8c75` |
+| kasan | `346ed33c4480328bcfe6bd5e658908e0d519a8b793de6e10bded61af705bde7c` |
+| both | `0d6fdc978b72b1f63072035f0afd119fd67061bdd8854b866e2953c9feffb964` |
+
+Root `make test` again passed 93 Rust tests and 29 Python tests, with
+14 contextual rustdoc examples ignored. Root `make check`, OSDK formatting
+and OSDK `cargo clippy --all-targets -- -D warnings` passed.
+The OSDK host suite passed all 28 tests, including 14 coverage-collector
+tests using simulated monitor responses.
+
 ## Recorded guest runs
 
 | Source/test stage | Boots | Shadow assertions | Workload thread-rounds | Results |
@@ -211,10 +243,11 @@ these boot counts.
 | Initial four configurations | 210 | 907,170 | 184,320 | [results.tsv](results.tsv) |
 | Allocation-size tests, 82d925d | 48 | 2,778,728 | 32,768 | [memory-results.tsv](memory-results.tsv) |
 | Quarantine byte-budget tests, 652be95 | 48 | 2,779,240 | 32,768 | [quarantine-results.tsv](quarantine-results.tsv) |
-| Latest source, f68d03d | 54 | 2,779,240 | 45,056 | [review-results.tsv](review-results.tsv) |
+| Source verification, f68d03d | 54 | 2,779,240 | 45,056 | [review-results.tsv](review-results.tsv) |
 | Execution audit, all CPUs | 78 | 4,168,860 | 61,440 | [audit-guest-results.tsv](audit-guest-results.tsv) |
 | Execution audit, repeat | 54 | 2,779,240 | 45,056 | [audit-guest-results.tsv](audit-guest-results.tsv) |
-| Total | 492 | 16,192,478 | 401,408 | All passed |
+| LLVM export follow-up, 2d078e3 | 28 | 1,389,620 | 24,576 | [coverage-regression-results.tsv](coverage-regression-results.tsv) |
+| Total | 520 | 17,582,098 | 425,984 | All passed |
 
 These totals count sanitizer guest regressions. The 37 selected kernel
 unit-test boots are separate. The initial run used five repetitions on
@@ -238,6 +271,8 @@ The named execution audit is in
 `execution-audit-workspace/`, including the two-vCPU OSTD rerun from
 `run-audit-ostd.sh`, and `core-sanitizer-ktests-final/`.
 Additional guest runs are in `audit-final-*` and `audit-54-*` directories.
+The current follow-up is in `coverage-fix-regression-{off,kcov,kasan,both}/`.
+Current host check logs and exit statuses are in `llvm-coverage-checks/`.
 
 The native server retains scripts, tool configuration and logs under
 `/root/SyzOxide/.workdir/kcov-expanded/`.
