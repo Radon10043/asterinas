@@ -480,6 +480,7 @@ test:
 	@if [ -n "$(TEST_PACKAGE_NAMES)" ]; then \
 		cargo test $(addprefix -p ,$(TEST_PACKAGE_NAMES)); \
 	fi
+	@PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test/sanitizers -p 'test_*.py'
 
 .PHONY: ktest
 ktest: CONSOLE = ttyS0
