@@ -56,7 +56,7 @@ Test-driver revision `5f41fda99e5c836544f4f66c2cedfb87e18847b8`
 requires nonempty CPU selections, complete boot counts and the current
 shadow assertion count. Its named-test auditor checks the reviewed inventory,
 test activity, terminal results and image hashes. `make test` includes
-29 self-contained Python tests for these drivers.
+47 self-contained Python tests for the execution and performance drivers.
 
 The task directory contains `run-workspace-tests.sh`,
 `run-ostd-sanitizer-final.sh`, `run-core-sanitizer-tests.sh` and
@@ -102,3 +102,17 @@ linear, frame metadata and kernel text ranges. Expanding stack/global
 diagnostics requires compiler/runtime support and separate tests.
 
 Use [UPSTREAM.md](UPSTREAM.md) to prepare submissions to Asterinas upstream.
+
+## Performance measurements
+
+Follow [PERFORMANCE.md](PERFORMANCE.md) to rebuild and measure the optimized
+release profile on one and four vCPUs.
+The images are retained under `/root/asterinas/target/sanitizer-bench/`;
+commands, logs and measurements are under
+`/root/SyzOxide/.workdir/kcov-expanded/performance/`.
+The runtime study records 48 successful independent boots and 192 measurements.
+It distinguishes inactive KCOV, PC recording, comparison recording, KASAN,
+and combined instrumentation.
+The performance boot count is separate from the sanitizer correctness runs.
+Refresh the measurements after changes to instrumentation, task access,
+shadow checks, allocation or compiler settings.

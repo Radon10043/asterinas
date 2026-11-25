@@ -158,3 +158,11 @@ standalone OSDK outcomes and checks against incomplete test runs.
 [LLVM-COVERAGE.md](LLVM-COVERAGE.md) describes OSDK profile export, real
 profile validation and the current sanitizer regression. Use matching OSDK
 and OSTD revisions when collecting LLVM profiles.
+
+## Performance measurements
+
+[PERFORMANCE.md](PERFORMANCE.md) describes the optimized kernel profile,
+independent-guest measurements, PC/CMP recording conditions, memory accounting
+and reproduction commands.
+Use `build-benchmark.sh` for these images and `benchmark-run.py` for the timed
+workloads; `benchmark-summary.py` computes paired overhead statistics.

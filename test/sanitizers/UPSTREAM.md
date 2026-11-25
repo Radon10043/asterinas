@@ -74,3 +74,10 @@ Require a fresh profile, successful LLVM merge/show and positive execution
 counts. Verify that a deliberately failed guest still exports a profile
 while returning command status 1. Retain LLVM tool diagnostics with the
 matching profile and ELF files, as described in [LLVM-COVERAGE.md](LLVM-COVERAGE.md).
+
+Include [PERFORMANCE.md](PERFORMANCE.md) and its raw measurement tables when
+reviewing instrumentation overhead.
+Report the optimized build settings, workload definitions, independent boot
+count, CPU affinity, recording-buffer capacity and repeat-to-repeat variation.
+Keep inactive KCOV, PC recording, comparison recording and KASAN results
+separate, and rerun the same workloads after rebasing performance-sensitive code.
