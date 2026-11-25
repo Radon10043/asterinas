@@ -6,14 +6,13 @@
 //! check out the OSDK reference manual.
 
 use alloc::vec::Vec;
-use core::mem::ManuallyDrop;
 
 use spin::Once;
 
-use crate::sync::SpinLock;
+use crate::{arch::irq::disable_local_and_halt, power::ExitCode};
 
 /// A hook that is invoked when the system exits to dump the code coverage data.
-pub(crate) fn on_system_exit() {
+pub(crate) fn on_system_exit(code: ExitCode) -> ! {
     static COVERAGE_DATA: Once<Vec<u8>> = Once::new();
 
     let coverage = COVERAGE_DATA.call_once(|| {
@@ -24,5 +23,17 @@ pub(crate) fn on_system_exit() {
         coverage
     });
 
-    crate::early_println!("#### Coverage: {:p} {}", coverage.as_ptr(), coverage.len());
+    let status = match code {
+        ExitCode::Success => "success",
+        ExitCode::Failure => "failure",
+    };
+    crate::early_println!(
+        "#### Coverage: {:p} {} {}",
+        coverage.as_ptr(),
+        coverage.len(),
+        status
+    );
+
+    // OSDK pauses the VM and copies this immutable buffer before terminating QEMU.
+    disable_local_and_halt();
 }

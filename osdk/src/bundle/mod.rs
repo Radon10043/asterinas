@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 pub mod bin;
+mod coverage;
 pub mod file;
 pub mod vm_image;
 
@@ -253,15 +254,14 @@ impl Bundle {
 
     pub fn run(&self, config: &Config, action: ActionChoice) {
         let exit_status = self.run_qemu_and_wait(config, action);
-        // FIXME: When panicking it sometimes returns success, why?
-        match classify_qemu_exit_status(exit_status) {
+        match exit_status {
             QemuExit::Success => {}
             QemuExit::Failed => std::process::exit(1),
             QemuExit::Unknown => std::process::exit(2),
         }
     }
 
-    pub(crate) fn run_qemu_and_wait(&self, config: &Config, action: ActionChoice) -> ExitStatus {
+    pub(crate) fn run_qemu_and_wait(&self, config: &Config, action: ActionChoice) -> QemuExit {
         match self.can_run_with_config(config, action) {
             Ok(()) => {}
             Err(msg) => {
@@ -346,6 +346,29 @@ impl Bundle {
             Err(errno) => process::exit(errno as _),
         };
 
+        if action
+            .build
+            .features
+            .iter()
+            .any(|feature| feature == "coverage")
+        {
+            let Some(log_file) = &action.qemu.log_file else {
+                error_msg!(
+                    "Coverage requires qemu.log_file and serial output written to that file"
+                );
+                daemon_supervisor.abort(None, Errno::ParseMetadata);
+            };
+            let result = coverage::run(
+                &mut qemu_cmd,
+                &config.work_dir,
+                &config.work_dir.join(log_file),
+                &signal_guard,
+                &mut daemon_supervisor,
+            );
+            self.post_run_action(config, action);
+            return result;
+        }
+
         let exit_status = if action.qemu.with_monitor
             && let Some(qemu_log_file) = &action.qemu.log_file
         {
@@ -378,7 +401,7 @@ impl Bundle {
             );
             info!("VM is paused (shutdown)");
 
-            self.post_run_action(config, action, Some(&mut qemu_monitor_stream));
+            self.post_run_action(config, action);
 
             let _ = qemu_monitor_stream.write_all(b"quit\n");
             match daemon_supervisor.wait_for_qemu(&mut qemu_child) {
@@ -394,7 +417,7 @@ impl Bundle {
                 Ok(status) => status,
                 Err(errno) => daemon_supervisor.abort(Some(&mut qemu_child), errno),
             };
-            self.post_run_action(config, action, None);
+            self.post_run_action(config, action);
             exit_status
         };
 
@@ -464,7 +487,7 @@ impl Bundle {
         }
 
         daemon_supervisor.stop_all();
-        exit_status
+        classify_qemu_exit_status(exit_status)
     }
 
     /// Move the vm_image into the bundle.
@@ -492,12 +515,7 @@ impl Bundle {
         std::fs::write(manifest_file_path, manifest_file_content).unwrap();
     }
 
-    fn post_run_action(
-        &self,
-        config: &Config,
-        action: &Action,
-        qemu_monitor_stream: Option<&mut UnixStream>,
-    ) {
+    fn post_run_action(&self, config: &Config, action: &Action) {
         let Some(qemu_log_file) = &action.qemu.log_file else {
             return;
         };
@@ -510,13 +528,6 @@ impl Bundle {
             && let Some(aster_bin) = &self.manifest.aster_bin
         {
             crate::util::trace_panic_from_log(file, self.path.join(aster_bin.path()));
-        }
-
-        // Find the coverage data information in the QEMU log, and dump it if found.
-        if let Some(qemu_monitor_stream) = qemu_monitor_stream
-            && let Ok(file) = std::fs::File::open(&qemu_log_path)
-        {
-            crate::util::dump_coverage_from_qemu(file, qemu_monitor_stream);
         }
     }
 }

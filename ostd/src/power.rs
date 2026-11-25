@@ -97,21 +97,30 @@ pub fn inject_poweroff_handler(handler: fn(ExitCode)) {
 
 /// Powers off the system.
 ///
+/// With the `coverage` feature, this function captures the LLVM profile and reports the exit
+/// status to OSDK. It then halts the calling CPU while OSDK pauses the VM, exports the profile,
+/// and terminates QEMU. Poweroff handlers are not invoked in this mode.
+///
 /// This function will not return. If the poweroff mechanism fails, this function will halt all CPUs
 /// on the machine.
 #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 pub fn poweroff(code: ExitCode) -> ! {
     #[cfg(feature = "coverage")]
-    crate::coverage::on_system_exit();
-
-    if let Some(handler) = POWEROFF_HANDLER.get() {
-        (handler)(code);
-    } else {
-        crate::arch::power::try_poweroff(code);
+    {
+        crate::coverage::on_system_exit(code);
     }
-    crate::error!("Failed to power off the system");
 
-    machine_halt();
+    #[cfg(not(feature = "coverage"))]
+    {
+        if let Some(handler) = POWEROFF_HANDLER.get() {
+            (handler)(code);
+        } else {
+            crate::arch::power::try_poweroff(code);
+        }
+        crate::error!("Failed to power off the system");
+
+        machine_halt();
+    }
 }
 
 #[cfg_attr(feature = "kasan", sanitize(address = "off"))]
