@@ -42,16 +42,15 @@ when preparing the submission.
 - [Testing guidelines](../../book/src/to-contribute/coding-guidelines/for-development/testing.md)
 - [Boterinas review commands](../../book/src/to-contribute/boterinas.md)
 
-
 Before updating an upstream PR, rerun the four sanitizer configurations,
 the full default workspace kernel suite and both instrumented unit suites.
-Use one vCPU and the required virtual disks for the default workspace suite;
+Use two vCPUs for OSTD and one vCPU for the other default workspace crates,
+with the required virtual disks;
 use the documented multi-vCPU configurations for sanitizer regressions.
 Refresh image hashes and per-boot result tables from that source revision.
 The current integration results include all 35 workspace default members,
 strict feature checks and a complete repository check. State any
 hardware-dependent skips explicitly in the upstream test description.
-
 
 For complete VMX/EPT coverage, run the default and instrumented OSTD suites
 on an Intel VMX/EPT host with KVM nested virtualization enabled and the
@@ -61,3 +60,16 @@ required guest CPU features exposed. Confirm that
 validation host has SVM/NPT enabled and cannot provide these Intel features
 through its KVM or QEMU 8.2.2 TCG configuration. Retain the explicit skips
 until successful executions are recorded.
+
+Keep reported successful returns separate from executed and skipped tests.
+Run `audit-kernel-tests.py` against the retained per-crate serial logs;
+the two remote-CPU interrupt cases must show their expected activity.
+Include `make test_osdk` separately when reporting OSDK coverage, since
+the OSDK crate is excluded from the root workspace. State its result
+independently of KCOV/KASAN guest tests and distinguish the hypervisor
+example's unavailable-feature diagnostic from VMX execution.
+
+The current native OSDK LLVM coverage integration fails to export
+`coverage.profraw`; require the exported profile as well as process success
+when validating this feature. Refresh that result independently of the
+KCOV/KASAN regression results.

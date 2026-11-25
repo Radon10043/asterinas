@@ -2,45 +2,64 @@
 
 Validation ran on 2026-11-24 and 2026-11-25 on SSH host `idcai-60525`.
 The Asterinas base is `879e2c51cc3e8776b9b385645c6b0bbe45b7dbd5`.
-The latest kernel and self-test source is
+The kernel and self-test source is
 `f68d03d84e537cc87cabe169a9a185282dbf9bb0`.
+The execution-audit and test-driver revision is
+`5f41fda99e5c836544f4f66c2cedfb87e18847b8`.
 
 ## Latest source results
 
 | Check | Result |
 | --- | --- |
 | Four sanitizer configurations | All built |
-| Sanitizer guest regression | 54/54 boots passed |
-| Default workspace kernel suite | 522 passed, 0 failed, 0 filtered |
-| Instrumented OSTD kernel suite | 225 passed, 0 failed, 0 filtered |
+| Additional sanitizer guest regression | 132/132 boots passed |
+| Default workspace kernel suite | 519 completed, 3 hardware skips, 0 failed, 0 filtered |
+| Instrumented OSTD kernel suite | 222 completed, 3 hardware skips, 0 failed, 0 filtered |
 | Instrumented aster-core kernel suite | 148 passed, 0 failed, 0 filtered |
-| Host `make test` | 93 passed, 0 failed, 14 ignored documentation examples |
+| Host `make test` | 68 host tests and 25 doctests passed; 14 documentation examples ignored |
+| Test-driver unit tests | 29 passed |
+| Standalone OSDK unit tests | 14 passed |
+| Standalone OSDK integrations | 21 passed, 1 failed |
+| OSDK LLVM coverage integration | Failed: exported profile absent |
 | Complete `make check` | Exit 0 |
 | Strict feature-enabled Clippy | OSTD and kernel passed |
-| Compiler wrapper | 64 combinations and implicit host invocation passed |
+| Compiler wrapper argument checks | 1,152 combinations and implicit host invocation passed |
 | ELF instrumentation checks | All four configurations passed |
 
 The default workspace suite booted all 35 default members. Seventeen crates
-contain tests; the other eighteen completed with zero tests. All 35 QEMU
-processes returned 33. The NVMe suite passed all seven tests with a disposable
+contain tests; the other eighteen completed with zero tests. All 35 selected QEMU
+processes returned 33. OSTD ran on two vCPUs and the other crates on one.
+The two remote-CPU interrupt tests completed one and two remote calls,
+respectively, as required by their assertions.
+The NVMe suite passed all seven tests with a disposable
 128 MiB NVMe disk. XArray passed all twenty tests.
 
 Both instrumented suites enabled `kcov,kasan`, disabled default features
 and used the compiler wrapper. They booted on two vCPUs with KASAN enabled.
-Their 373 test executions are reported separately from the default suite.
+The runner reports 373 successful returns, including three hardware skips;
+370 test bodies completed. These are reported separately from the default suite.
 See [kernel-test-results.tsv](kernel-test-results.tsv) for all 37 images,
 per-crate counts, QEMU statuses and image hashes.
+[kernel-test-executions.tsv](kernel-test-executions.tsv) lists every named
+outcome. The source inventory contains 522 default registrations and three
+additional KCOV tests. The auditor requires those exact named executions;
+summary-only output cannot satisfy the check.
 
-The OSTD suites each reported three hardware-dependent subcase skips:
+The OSTD suites each reported three hardware-dependent test skips:
 `multiple_vmx_guards_lifecycle`, `switch_and_reuse_vmcs` and
 `guest_mapping_lifecycle`. The guest does not provide VMX/EPT facilities.
+There are 17 zero-test host targets: 11 host binaries/libraries and six
+doctest targets. They contribute no passed tests.
 The 14 ignored host items are rustdoc examples requiring surrounding macro,
 module or kernel context; they are not executable ignored unit tests.
+
+The [execution audit](EXECUTION-AUDIT.md) explains the named-test checks,
+zero-test counts, standalone OSDK coverage and test-driver controls.
 
 ## VMX/EPT host capability check
 
 On 2026-11-25, the validation host was checked for the three OSTD
-hardware-dependent subcases listed above.
+hardware-dependent tests listed above.
 
 | Check | Observed value |
 | --- | --- |
@@ -61,7 +80,7 @@ and `-accel tcg -cpu max,vmx=on,enforce`. Both ran with `-S`,
 `-nodefaults` and no guest disks. KVM reported that the host cannot
 provide CPUID VMX; TCG reported that it does not implement that feature.
 
-AMD SVM/NPT is already enabled on this server. These OSTD subcases require
+AMD SVM/NPT is already enabled on this server. These OSTD tests require
 Intel VMX/EPT, which the current host and QEMU execution modes cannot
 provide. Their status remains skipped, and the test totals are unchanged.
 
@@ -71,10 +90,10 @@ include four-level EPT walks, write-back memory and all-context INVEPT.
 VMX initialization also validates the VMX control MSRs and permission to
 enter VMX outside SMX.
 
-To execute these subcases, use an Intel host satisfying those requirements,
+To execute these tests, use an Intel host satisfying those requirements,
 enable nested virtualization in `kvm_intel`, and expose VMX/EPT to the
 guest. Rerun both the default and instrumented OSTD suites, checking the
-named subcases for successful execution without skip messages. Record that
+named tests for successful execution without skip messages. Record that
 host's CPU features, KVM parameters, image hashes and serial output.
 
 The native-server observations and QEMU output are retained under
@@ -94,7 +113,7 @@ The native-server observations and QEMU output are retained under
 | Default workspace compilation | dev, opt-level 2 |
 | LTO | disabled |
 | Kernel task stack | 64 pages |
-| Default workspace guest | 1 vCPU, 2 GiB |
+| Default workspace guests | OSTD: 2 vCPUs; other crates: 1 vCPU; 2 GiB |
 | Instrumented unit-test guests | 2 vCPUs, 2 GiB |
 | nixfmt | 1.4.0 |
 | clang-format | 18.1.3 |
@@ -104,7 +123,7 @@ Dependencies and tool binaries are installed under
 `/root/SyzOxide/.workdir/`. NixOS test dependencies follow the existing
 `test/nixos/Cargo.lock`; its contents were preserved.
 
-## Latest sanitizer guest runs
+## Four-configuration source verification
 
 | Configuration | RAM | vCPUs | Cases | Passed |
 | --- | --- | --- | --- | --- |
@@ -172,6 +191,19 @@ zero records where one record fits. A matching-ELF check resolved sampled
 PCs to `sys_getpid` and `sys_getuid`. SyzOxide's 42 host tests and
 instrumentation checker passed separately.
 
+## Additional execution-audit runs
+
+The current runner completed two further batches: 78 boots with all memory
+configurations on 1/2/4 vCPUs, followed by 54 boots repeating the 1/4-vCPU
+memory configurations. Each batch also ran off/KCOV on 1/2/4 vCPUs at 2 GiB.
+
+All 132 boots passed. They performed 6,948,100 shadow assertions and
+106,496 workload thread-rounds. Each retained image and initramfs digest
+was checked against that run's recorded inputs.
+[audit-guest-results.tsv](audit-guest-results.tsv) separates the two batches.
+The test-driver unit tests are synthetic checks and are not included in
+these boot counts.
+
 ## Recorded guest runs
 
 | Source/test stage | Boots | Shadow assertions | Workload thread-rounds | Results |
@@ -180,12 +212,15 @@ instrumentation checker passed separately.
 | Allocation-size tests, 82d925d | 48 | 2,778,728 | 32,768 | [memory-results.tsv](memory-results.tsv) |
 | Quarantine byte-budget tests, 652be95 | 48 | 2,779,240 | 32,768 | [quarantine-results.tsv](quarantine-results.tsv) |
 | Latest source, f68d03d | 54 | 2,779,240 | 45,056 | [review-results.tsv](review-results.tsv) |
-| Total | 360 | 9,244,378 | 294,912 | All passed |
+| Execution audit, all CPUs | 78 | 4,168,860 | 61,440 | [audit-guest-results.tsv](audit-guest-results.tsv) |
+| Execution audit, repeat | 54 | 2,779,240 | 45,056 | [audit-guest-results.tsv](audit-guest-results.tsv) |
+| Total | 492 | 16,192,478 | 401,408 | All passed |
 
-These totals count sanitizer guest regressions. The 37 latest kernel
+These totals count sanitizer guest regressions. The 37 selected kernel
 unit-test boots are separate. The initial run used five repetitions on
-1/2/4 vCPUs with 2 GiB. Each subsequent memory run used 512 MiB and 4 GiB,
-1/4 vCPUs and one repetition of all six cases for KASAN and KCOV+KASAN.
+1/2/4 vCPUs with 2 GiB. Subsequent memory runs used 512 MiB and 4 GiB with KASAN and KCOV+KASAN.
+The all-CPU audit batch used 1/2/4 vCPUs; the other memory batches used
+1/4 vCPUs, with one repetition of all six cases per configuration.
 
 Historical KASAN image hashes identify the test revisions:
 
@@ -198,6 +233,12 @@ Historical KASAN image hashes identify the test revisions:
 ## Reproduction and retained artifacts
 
 Use [README.md](README.md) for portable sanitizer build and run commands.
+The named execution audit is in
+`execution-audit-verified/{summary,tests}.tsv`. It reads
+`execution-audit-workspace/`, including the two-vCPU OSTD rerun from
+`run-audit-ostd.sh`, and `core-sanitizer-ktests-final/`.
+Additional guest runs are in `audit-final-*` and `audit-54-*` directories.
+
 The native server retains scripts, tool configuration and logs under
 `/root/SyzOxide/.workdir/kcov-expanded/`.
 
@@ -205,7 +246,8 @@ The native server retains scripts, tool configuration and logs under
   used by `make ktest`, with Linux EFI64 boot, dev optimization 2 and
   `workspace-qemu.sh`. The launcher provides one vCPU and a disposable
   NVMe disk for the NVMe suite. Results are in `workspace-ktests-final/`
-  and `workspace-ktests-final.log`.
+  and `workspace-ktests-final.log`. The current audit replaces its OSTD
+  result with the two-vCPU run in `execution-audit-workspace/ostd/`.
 - `run-ostd-sanitizer-final.sh` and `run-core-sanitizer-tests.sh` run
   the instrumented unit suites. They pass `--features=kcov,kasan`,
   `--no-default-features`, `--boot-method=vmm-direct`,
@@ -215,11 +257,12 @@ The native server retains scripts, tool configuration and logs under
   `core-sanitizer-final.log`.
 - `clippy-features-strict.sh` and `clippy-features-strict.log` retain
   the separate strict feature checks.
-- `upstream-unit-make-test-f68d03d.log` records the repeated
-  host suite; `upstream-make-check-final-20261125.log` records the
-  complete repository check.
+- `audit-make-test.log` records the Rust and Python host suites;
+  `audit-make-check-final.log` records the complete repository check;
+  `audit-symbols.log` records the ELF checks. Each has an exit-status
+  `.meta` file.
 - `review-memory-{kasan,both}-{512,4096}/` and
-  `review-standard-{off,kcov}/` contain the latest per-boot serial logs,
+  `review-standard-{off,kcov}/` contain the source-verification serial logs,
   firmware state, image hashes and result tables.
 
 Compiled sanitizer images and matching ELF files are under

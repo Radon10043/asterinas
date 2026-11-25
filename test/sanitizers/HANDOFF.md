@@ -44,27 +44,48 @@ can be resolved against that ELF.
 ## Validated source and checks
 
 Kernel and self-test source commit `f68d03d84e537cc87cabe169a9a185282dbf9bb0`
-passed 54 sanitizer regression boots, all 35 default workspace kernel
-executables (522 tests), and the instrumented OSTD/aster-core suites
-(225 and 148 tests). The complete `make check` and host `make test`
-passed. The result tables record hardware-dependent skips separately.
+has 492 recorded sanitizer guest boots, all passed. The named kernel-test
+audit records 519 completed default-workspace tests, 222 completed
+instrumented OSTD tests and 148 completed instrumented aster-core tests.
+Each OSTD configuration separately records the three VMX/EPT skips.
+The 18 workspace crates without registered tests are listed as zero-test
+crates.
+
+Test-driver revision `5f41fda99e5c836544f4f66c2cedfb87e18847b8`
+requires nonempty CPU selections, complete boot counts and the current
+shadow assertion count. Its named-test auditor checks the reviewed inventory,
+test activity, terminal results and image hashes. `make test` includes
+29 self-contained Python tests for these drivers.
 
 The task directory contains `run-workspace-tests.sh`,
 `run-ostd-sanitizer-final.sh`, `run-core-sanitizer-tests.sh` and
 `clippy-features-strict.sh` for the native-server environment.
-The current per-boot records are `review-results.tsv` and
-`kernel-test-results.tsv` in this directory. Keep the matching
+The current per-boot records are `audit-guest-results.tsv` and
+`kernel-test-results.tsv`. `kernel-test-executions.tsv` lists each
+named kernel-test result. The native `run-audit-ostd.sh` reruns OSTD
+on two vCPUs; both remote-CPU interrupt cases require this configuration. Keep the matching
 images, ELF files and logs listed in `TEST-RESULTS.md`.
 
 ## VMX/EPT coverage
 
 The validation host is an AMD EPYC 7H12 with SVM/NPT and AMD nested
 virtualization enabled. Its KVM guest exposes no Intel VMX/EPT; QEMU 8.2.2
-TCG also rejects required VMX. The three OSTD VMX/EPT subcases remain
+TCG also rejects required VMX. The three OSTD VMX/EPT tests remain
 skipped. Run the default and instrumented OSTD suites on an Intel VMX/EPT
-host with nested virtualization enabled to complete these subcases.
+host with nested virtualization enabled to complete these tests.
 [TEST-RESULTS.md](TEST-RESULTS.md#vmxept-host-capability-check) records the
 host capability checks and required follow-up results.
+
+## Standalone OSDK checks
+
+OSDK is outside the root workspace. Its 14 unit tests passed; its 22
+integrations produced 21 passes and one failure. Named outcomes are in
+[osdk-test-results.tsv](osdk-test-results.tsv), with execution details in
+[EXECUTION-AUDIT.md](EXECUTION-AUDIT.md). The LLVM
+coverage integration currently fails because `coverage.profraw` is absent
+after the guest exits. The OSDK command returns zero, so retain the
+integration assertion when investigating this export behavior. The
+hypervisor example validates the unavailable-VMX diagnostic on this host.
 
 ## Follow-up review
 

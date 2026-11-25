@@ -48,6 +48,10 @@ done
 Each output directory must be new. Defaults are five repetitions on each of
 1, 2 and 4 vCPUs with 2 GiB RAM and a 120-second timeout per boot.
 Set `REPEAT` and space-separated `CPUS` to change the run count.
+CPU counts must be distinct positive integers on one line.
+`REPEAT` accepts a positive decimal integer of at most nine digits.
+The runner requires every planned boot to finish and checks the current
+shadow test's exact assertion count.
 Set `MEMORY_MIB` to change guest memory (default 2048).
 Set `QEMU`, `QEMU_DATA_DIR`, `GRUB_MKSTANDALONE`, `GRUB_MODULES` and
 `OVMF_DIR` for nonstandard installations. Shared library paths may also be
@@ -96,7 +100,6 @@ The four configurations produce 210 boots with the default settings.
 There are 90 successful workload boots, totaling 184,320 thread-rounds, and
 120 boots that must terminate with their selected KASAN diagnostic.
 
-
 ## Repository checks
 
 Run the host suite, repository checks and workspace kernel tests in the
@@ -108,11 +111,46 @@ make check
 make ktest
 ```
 
-The workspace kernel tests use the default single-vCPU configuration and
-the test disk images, including an NVMe device. The sanitizer boot tests
-above separately exercise 1, 2 and 4 vCPUs.
+The workspace kernel tests use the test disk images, including an NVMe
+device. Run OSTD on two vCPUs so its remote-CPU interrupt tests execute;
+the other workspace crates use the default single-vCPU configuration.
+The sanitizer boot tests above separately exercise 1, 2 and 4 vCPUs.
 
 The validation server also runs OSTD and `aster-core` kernel tests with
 both `kcov,kasan` features, address/coverage instrumentation and two vCPUs.
 [TEST-RESULTS.md](TEST-RESULTS.md) records the exact native-host commands,
 tool versions, test counts and retained launchers.
+
+## Auditing actual execution
+
+`make test` also runs the self-contained Python tests for the guest runner
+and named kernel-log auditor. These use synthetic logs and command substitutes;
+their counts are separate from real guest boots.
+
+`audit-kernel-tests.py` checks each expected test name, its terminal result,
+the selected crate and count, completion markers, QEMU status and retained
+image digest. It requires activity output from the two remote-CPU interrupt
+tests. The reviewed `expected-kernel-tests.json` lists all registrations
+for the tested x86_64 configuration and the three permitted VMX/EPT skips.
+Update this inventory when the registered test set changes.
+
+```bash
+python3 test/sanitizers/audit-kernel-tests.py \
+    --workspace /path/to/default-crate-results \
+    --instrumented /path/to/instrumented-ostd-and-core-results \
+    --output /path/to/new-audit-directory
+```
+
+Each input crate directory contains `serial.log`, `qemu-exit.txt`,
+`image.sha256` and `efi/bzImage`, as produced by the retained QEMU
+launchers. The output directory must be new. Its `summary.tsv` separates
+reported success, completed tests, permitted skips and crates with no tests;
+`tests.tsv` lists every named outcome.
+
+The wrapper check uses compiler argument capture for all workspace default
+members plus an unknown dependency, four target types, four feature
+combinations and two argument forms. Real instrumentation is verified
+separately with compiled ELF files and guest tests.
+
+See [EXECUTION-AUDIT.md](EXECUTION-AUDIT.md) for named execution counts,
+standalone OSDK outcomes and checks against incomplete test runs.
