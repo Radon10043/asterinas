@@ -1,0 +1,59 @@
+{
+  "source_commit": "c697cfb4e16bfc5da1b755a35eec2fbf06102bbf",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "benchmark_source_sha256": "10f8ebd0144e11d6aea56d73b4ccacf05fc501d1924ec3b0a9f80e5ae08a26fa",
+  "benchmark_sha256": "479c354cc7e3b642ba45af205801a615bb99520726df7c5e2b6bd75c3399de3e",
+  "runner_sha256": "85b3ed3e097e5eb840081cbe82ff841d82a90891ad24fca6132187e0fccdd19a",
+  "busybox_sha256": "dbac288c29ba568459550a2da9e7ae0ded6b1fc728ee9fad3044c44e62d6ac14",
+  "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "qemu_version": "QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)\nCopyright (c) 2003-2023 Fabrice Bellard and the QEMU Project developers\n",
+  "host_lscpu": "\u67b6\u6784\uff1a                                   x86_64\nCPU \u8fd0\u884c\u6a21\u5f0f\uff1a                           32-bit, 64-bit\nAddress sizes:                           43 bits physical, 48 bits virtual\n\u5b57\u8282\u5e8f\uff1a                                 Little Endian\nCPU:                                     128\n\u5728\u7ebf CPU \u5217\u8868\uff1a                          0-127\n\u5382\u5546 ID\uff1a                                AuthenticAMD\nBIOS \u5382\u5546 ID\uff1a                           Advanced Micro Devices, Inc.\n\u578b\u53f7\u540d\u79f0\uff1a                               AMD EPYC 7H12 64-Core Processor\nBIOS \u578b\u53f7\u540d\u79f0\uff1a                          AMD EPYC 7H12 64-Core Processor                 Unknown CPU @ 2.6GHz\nBIOS CPU family:                         107\nCPU \u7cfb\u5217\uff1a                               23\n\u578b\u53f7\uff1a                                   49\n\u6bcf\u4e2a\u6838\u7684\u7ebf\u7a0b\u6570\uff1a                         2\n\u6bcf\u4e2a\u5ea7\u7684\u6838\u6570\uff1a                           64\n\u5ea7\uff1a                                     1\n\u6b65\u8fdb\uff1a                                   0\nFrequency boost:                         \u542f\u7528\nCPU(s) scaling MHz:                      61%\nCPU \u6700\u5927 MHz\uff1a                           2600.0000\nCPU \u6700\u5c0f MHz\uff1a                           1500.0000\nBogoMIPS\uff1a                               5190.16\n\u6807\u8bb0\uff1a                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpb cat_l3 cdp_l3 hw_pstate ssbd mba ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 cqm rdt_a rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local clzero irperf xsaveerptr rdpru wbnoinvd arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif v_spec_ctrl umip rdpid overflow_recov succor smca sev sev_es ibpb_exit_to_user\n\u865a\u62df\u5316\uff1a                                 AMD-V\nL1d \u7f13\u5b58\uff1a                               2 MiB (64 instances)\nL1i \u7f13\u5b58\uff1a                               2 MiB (64 instances)\nL2 \u7f13\u5b58\uff1a                                32 MiB (64 instances)\nL3 \u7f13\u5b58\uff1a                                256 MiB (16 instances)\nNUMA \u8282\u70b9\uff1a                              1\nNUMA \u8282\u70b90 CPU\uff1a                         0-127\nVulnerability Gather data sampling:      Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; untrained return thunk; SMT enabled with STIBP protection\nVulnerability Spec rstack overflow:      Mitigation; Safe RET\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Retpolines; IBPB conditional; STIBP always-on; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace\n",
+  "modes": "off,kcov,kasan,both",
+  "host_cpus": "8,9,10,11",
+  "guest_cpus": "1,4",
+  "repetitions": 3,
+  "scale": 20,
+  "memory_mib": 2048,
+  "timeout": 1200,
+  "trace_isolation": "one_boot_per_trace",
+  "images": {
+    "off": {
+      "bytes": 5468160,
+      "sha256": "2c6915ce06ad3c7a0ee147b6cda4b7164cd3960a491c6a4cf607ae2c41d8377f"
+    },
+    "kcov": {
+      "bytes": 6782976,
+      "sha256": "e29265fb766a15b5ddea62697284883702543ada050664121c38a924766ea8a5"
+    },
+    "kasan": {
+      "bytes": 6811648,
+      "sha256": "715c858244c26bd6e34d2acdbf9c3e2f5acc9e5a29da7888e1e79d406b0b28a6"
+    },
+    "both": {
+      "bytes": 8142848,
+      "sha256": "35e4a59b57d86f764a8443af6fa7b8f5042d5b1f3eb7ebfce7552cee3839e0b1"
+    }
+  },
+  "cpu_settings": {
+    "8": {
+      "siblings": "8,72",
+      "governor": "schedutil",
+      "driver": "acpi-cpufreq"
+    },
+    "9": {
+      "siblings": "9,73",
+      "governor": "schedutil",
+      "driver": "acpi-cpufreq"
+    },
+    "10": {
+      "siblings": "10,74",
+      "governor": "schedutil",
+      "driver": "acpi-cpufreq"
+    },
+    "11": {
+      "siblings": "11,75",
+      "governor": "schedutil",
+      "driver": "acpi-cpufreq"
+    }
+  }
+}

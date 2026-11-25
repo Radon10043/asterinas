@@ -15,13 +15,14 @@ The LLVM export implementation and latest 28 sanitizer boots use
 | Check | Result |
 | --- | --- |
 | Four sanitizer configurations | All built |
+| Optimized performance study | 48/48 boots; 192 measurements across 64 groups |
 | Execution-audit sanitizer regression | 132/132 boots passed |
 | LLVM export follow-up sanitizer regression | 28/28 boots passed |
 | Default workspace kernel suite | 519 completed, 3 hardware skips, 0 failed, 0 filtered |
 | Instrumented OSTD kernel suite | 222 completed, 3 hardware skips, 0 failed, 0 filtered |
 | Instrumented aster-core kernel suite | 148 passed, 0 failed, 0 filtered |
 | Host `make test` | 68 host tests and 25 doctests passed; 14 documentation examples ignored |
-| Test-driver unit tests | 29 passed |
+| Test-driver unit tests | 47 passed, including execution and performance controls |
 | Standalone OSDK unit tests | 28 passed |
 | Standalone OSDK integrations | 23 passed, 0 failed, 0 filtered |
 | OSDK LLVM coverage integrations | Normal and failed guest exits both exported readable profiles |
@@ -303,3 +304,37 @@ The native server retains scripts, tool configuration and logs under
 Compiled sanitizer images and matching ELF files are under
 `/root/asterinas/target/sanitizers/MODE/`. Keep each ELF with its image
 and serial logs when resolving report addresses.
+
+## Optimized performance measurements
+
+[PERFORMANCE.md](PERFORMANCE.md) reports the one/four-vCPU study on
+kernel source `f0f2d37d74c714eef143460bd48bcbc191d4746f` with benchmark
+source `c697cfb`.
+All four images use release optimization level 2 for every crate, LTO off,
+64 task-stack pages and identical profile settings.
+Eight kernel/recording conditions each ran three independent boots on
+one and four vCPUs with 2 GiB RAM, producing 48 successful boots and
+192 checked measurements.
+These performance boots are counted separately from the 520 sanitizer
+correctness boots.
+
+Timed work totaled 56,400,000 rounds and 117,600,000 explicit workload
+syscalls; warmup completed the same number of rounds.
+Every active recording produced nonzero counts below capacity.
+The maximum PC buffer occupancy was 62.07%, and CMP occupancy was 9.80%.
+Each serial log was parsed again and matched against the published data;
+image, initramfs and serial hashes were verified for all 48 boots.
+The Python execution and statistics controls now total 47 passing tests.
+
+The study includes substantial measured overhead, especially for combined
+KASAN and CMP recording.
+Consult the per-workload timings and repeated-sample ranges in
+[performance-summary.tsv](performance-summary.tsv), the individual samples
+in [performance-measurements.tsv](performance-measurements.tsv), and the
+[boot records](performance-boots.tsv).
+
+Final host checks after measurement passed `make test` (93 Rust tests/doctests,
+47 Python tests; 14 contextual rustdoc examples ignored) and `make check`.
+The strict static C build, clang-format, shell syntax and spelling checks
+also passed. Logs and exit statuses are in the retained
+`performance/final-checks/` directory.
