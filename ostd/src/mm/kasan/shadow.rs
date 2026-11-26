@@ -8,7 +8,7 @@ use core::ffi::c_void;
 
 use super::{
     AccessType, KASAN_GRANULE_MASK, KASAN_PAGE_FREE, KASAN_SHADOW_INIT, KASAN_SHADOW_SCALE_SHIFT,
-    addr_has_metadata, generic, init, is_enabled, mem_to_shadow,
+    KASAN_SLAB_FREE, addr_has_metadata, generic, init, is_enabled, mem_to_shadow,
 };
 use crate::mm::{PAGE_SIZE, Vaddr};
 
@@ -119,6 +119,12 @@ pub(in crate::mm) fn unpoison_pages(vaddr: Vaddr, nr_pages: usize) {
         return;
     };
     kasan_unpoison(vaddr, size);
+}
+
+/// Poisons a slab or freed heap slot with [`KASAN_SLAB_FREE`].
+#[sanitize(address = "off")]
+pub(in crate::mm) fn poison_slab_free(addr: Vaddr, size: usize) {
+    kasan_poison(addr, size, KASAN_SLAB_FREE);
 }
 
 #[sanitize(address = "off")]

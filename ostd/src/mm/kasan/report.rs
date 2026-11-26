@@ -216,3 +216,58 @@ pub(super) fn report_access_error(addr: usize, size: usize, access: AccessType, 
     emergency_println!("==================================================================");
     crate::panic::abort();
 }
+
+/// Captures an approximate caller PC for heap free diagnostics after KASAN has
+/// been disabled for reporting.
+#[sanitize(address = "off")]
+fn capture_free_caller_pc() -> usize {
+    use core::ffi::c_void;
+
+    use unwinding::abi::{_Unwind_Backtrace, _Unwind_GetIP, UnwindContext, UnwindReasonCode};
+
+    // Skip `capture_free_caller_pc`, `report_free_error`, `validate_heap_free`,
+    // and `AllocDispatch::dealloc`.
+    const SKIP_FRAMES: usize = 4;
+
+    struct State {
+        depth: usize,
+        pc: usize,
+    }
+
+    #[sanitize(address = "off")]
+    extern "C" fn callback(unwind_ctx: &UnwindContext<'_>, arg: *mut c_void) -> UnwindReasonCode {
+        // SAFETY: `arg` points to `state` on the caller's stack for the
+        // duration of `_Unwind_Backtrace`.
+        let state = unsafe { &mut *(arg as *mut State) };
+        let ip = _Unwind_GetIP(unwind_ctx);
+        if state.depth >= SKIP_FRAMES && ip != 0 {
+            state.pc = ip;
+            return UnwindReasonCode::END_OF_STACK;
+        }
+        state.depth += 1;
+        UnwindReasonCode::NO_REASON
+    }
+
+    let mut state = State { depth: 0, pc: 0 };
+    _Unwind_Backtrace(callback, &mut state as *mut State as *mut c_void);
+    state.pc
+}
+
+/// Reports a heap `double-free` or `invalid-free` violation and aborts.
+#[sanitize(address = "off")]
+pub(super) fn report_free_error(bug_type: &str, addr: usize) -> ! {
+    acquire_report_slot_or_halt(addr, 0);
+    let cpu_id = crate::cpu::CpuId::current_racy().as_usize();
+    let pc = capture_free_caller_pc();
+
+    emergency_println!("\n==================================================================");
+    emergency_println!("BUG: KASAN: {} in {:#x}", bug_type, pc);
+    emergency_println!("Free of addr {:#x} by CPU {}", addr, cpu_id);
+    if pc != 0 {
+        emergency_println!("KASAN: pc {:#x}", pc);
+    }
+    crate::panic::print_stack_trace_emergency();
+    print_shadow_for_address(addr);
+    emergency_println!("==================================================================");
+    crate::panic::abort();
+}

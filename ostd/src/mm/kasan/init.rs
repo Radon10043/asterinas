@@ -15,6 +15,7 @@ use super::{
 };
 use crate::{
     arch::mm::{PageTableEntry, PagingConsts},
+    boot::memory_region::MemoryRegionType,
     mm::{
         CachePolicy, FrameAllocOptions, PAGE_SIZE, Paddr, PageFlags, PageProperty,
         PrivilegedPageFlags, Vaddr,
@@ -99,10 +100,14 @@ pub(in crate::mm) fn init_shadow(
     let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
     let mut ranges = [(0usize, 0usize); MAX_WRITABLE_SHADOW_RANGES];
     let mut range_count = 0usize;
+    let mut usable_ram_bytes = 0usize;
 
     // Collect coalesced physical RAM linear ranges so non-RAM holes (such as
     // the PCI MMIO hole below 4 GiB) do not consume writable shadow memory.
     for region in regions.iter().filter(|r| r.typ().is_physical()) {
+        if region.typ() == MemoryRegionType::Usable {
+            usable_ram_bytes = usable_ram_bytes.saturating_add(region.len());
+        }
         let start = kspace::LINEAR_MAPPING_BASE_VADDR + region.base();
         let end = kspace::LINEAR_MAPPING_BASE_VADDR + region.end();
         if start >= end {
@@ -156,6 +161,8 @@ pub(in crate::mm) fn init_shadow(
     // activation or publication, and no cursor will later modify the shadow
     // PML4 range.
     unsafe { populate_zero_shadow(kpt.root_paddr()) };
+
+    super::quarantine::configure_from_usable_ram(usable_ram_bytes);
 
     crate::info!(
         "KASAN shadow initialized ({} KiB writable across {} ranges)",

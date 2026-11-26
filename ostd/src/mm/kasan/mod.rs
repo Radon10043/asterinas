@@ -19,7 +19,9 @@
 //!   through `report`.
 
 mod generic;
+mod heap;
 mod init;
+mod quarantine;
 mod report;
 mod shadow;
 
@@ -27,8 +29,10 @@ use core::sync::atomic::{AtomicBool, AtomicUsize};
 
 pub(crate) use self::report::is_reporting;
 pub(super) use self::{
+    heap::{on_heap_alloc, on_heap_free, padded_layout, validate_heap_free},
     init::init_shadow,
-    shadow::{poison_pages, unpoison_pages},
+    quarantine::quarantine_drain,
+    shadow::{poison_pages, poison_slab_free, unpoison_pages},
 };
 use crate::{
     const_assert,

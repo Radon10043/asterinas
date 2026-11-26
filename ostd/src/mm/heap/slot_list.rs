@@ -43,6 +43,10 @@ impl<const SLOT_SIZE: usize> SlabSlotList<SLOT_SIZE> {
     ///  - the slot does not come from a slab
     ///    (i.e., `!matches(slot.info(), SlotInfo::SlabSlot(_))`);
     ///  - the size of the slot does not match `SLOT_SIZE`.
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     pub fn push(&mut self, slot: HeapSlot) {
         let slot_ptr = slot.as_ptr();
         let super::SlotInfo::SlabSlot(slot_size) = slot.info() else {
@@ -57,25 +61,30 @@ impl<const SLOT_SIZE: usize> SlabSlotList<SLOT_SIZE> {
         debug_assert!(!slot_ptr.is_null());
         // SAFETY: A pointer to a slot must not be NULL;
         self.head = Some(unsafe { NonNull::new_unchecked(slot_ptr) });
-        // Write the original head to the slot.
+        // Write the original head to the slot via direct dereference so
+        // `sanitize(address = "off")` applies without calling an instrumented helper.
         // SAFETY: A heap slot must be free so the pointer to the slot can be
         // written to. The slot size is at least the size of a pointer.
         unsafe {
-            slot_ptr
-                .cast::<usize>()
-                .write(original_head.map_or(0, |h| h.as_ptr() as usize));
+            *slot_ptr.cast::<usize>() = original_head.map_or(0, |h| h.as_ptr() as usize);
         }
     }
 
     /// Pops a slot from the front of the list.
     ///
     /// It returns `None` if the list is empty.
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     pub fn pop(&mut self) -> Option<HeapSlot> {
         let original_head = self.head?;
 
+        // Read the next pointer via direct dereference so `sanitize(address = "off")`
+        // applies cleanly even while the free slot is poisoned by KASAN.
         // SAFETY: The head is a valid pointer to a free slot.
         // The slot contains a pointer to the next slot.
-        let next = unsafe { original_head.as_ptr().cast::<usize>().read() } as *mut u8;
+        let next = unsafe { *original_head.as_ptr().cast::<usize>() } as *mut u8;
 
         self.head = if next.is_null() {
             None
