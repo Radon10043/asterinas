@@ -20,6 +20,7 @@ OSTD_TASK_STACK_SIZE_IN_PAGES ?= 64
 FEATURES ?=
 NO_DEFAULT_FEATURES ?= 0
 COVERAGE ?= 0
+KCOV ?= 0
 INITRAMFS ?= on
 CMDLINE ?=
 
@@ -228,6 +229,29 @@ endif
 
 ifeq ($(COVERAGE), 1)
 CARGO_OSDK_COMMON_ARGS += --coverage
+endif
+
+ifeq ($(KCOV), 1)
+ifneq ($(TARGET_ARCH), x86_64)
+$(error KCOV currently supports only x86_64)
+endif
+ifneq ($(RELEASE_LTO), 0)
+$(error KCOV does not support RELEASE_LTO=1)
+endif
+ifneq ($(filter ktest,$(MAKECMDGOALS)),)
+$(error KCOV=1 does not support make ktest; run cargo osdk test --features kcov in ostd or kernel/core)
+endif
+KCOV_RUSTC_WRAPPER := $(CURDIR)/tools/kcov_rustc.sh
+ifneq ($(strip $(filter-out $(KCOV_RUSTC_WRAPPER),$(RUSTC_WRAPPER)) $(RUSTC_WORKSPACE_WRAPPER)),)
+$(error KCOV requires exclusive use of RUSTC_WRAPPER)
+endif
+export RUSTC_WRAPPER := $(KCOV_RUSTC_WRAPPER)
+# Keep compiler instrumentation confined to `aster_core`.
+export CARGO_PROFILE_DEV_LTO := false
+export CARGO_PROFILE_RELEASE_LTO := false
+CARGO_OSDK_BUILD_ARGS += --features=kcov
+else ifneq ($(KCOV), 0)
+$(error KCOV must be 0 or 1)
 endif
 
 ifdef FEATURES
