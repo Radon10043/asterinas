@@ -25,8 +25,11 @@ mod shadow;
 
 use core::sync::atomic::{AtomicBool, AtomicUsize};
 
-pub(super) use self::init::init_shadow;
 pub(crate) use self::report::is_reporting;
+pub(super) use self::{
+    init::init_shadow,
+    shadow::{poison_pages, unpoison_pages},
+};
 use crate::{
     const_assert,
     mm::{Vaddr, kspace},

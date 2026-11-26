@@ -158,11 +158,18 @@ impl<M: AnyFrameMeta + ?Sized> HasSize for UniqueFrame<M> {
 }
 
 impl<M: AnyFrameMeta + ?Sized> Drop for UniqueFrame<M> {
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     fn drop(&mut self) {
         self.slot().ref_count.store(0, Ordering::Relaxed);
         // SAFETY: We are the sole owner and the reference count is 0.
         // The slot is initialized.
         unsafe { self.slot().drop_last_in_place() };
+
+        #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+        crate::mm::kasan::poison_pages(crate::mm::paddr_to_vaddr(self.paddr()), 1);
 
         super::allocator::get_global_frame_allocator().dealloc(self.paddr(), PAGE_SIZE);
     }

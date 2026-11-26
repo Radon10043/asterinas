@@ -7,9 +7,10 @@
 use core::ffi::c_void;
 
 use super::{
-    AccessType, KASAN_GRANULE_MASK, KASAN_SHADOW_INIT, KASAN_SHADOW_SCALE_SHIFT, addr_has_metadata,
-    generic, init, is_enabled, mem_to_shadow,
+    AccessType, KASAN_GRANULE_MASK, KASAN_PAGE_FREE, KASAN_SHADOW_INIT, KASAN_SHADOW_SCALE_SHIFT,
+    addr_has_metadata, generic, init, is_enabled, mem_to_shadow,
 };
+use crate::mm::{PAGE_SIZE, Vaddr};
 
 unsafe extern "C" {
     #[link_name = "memcpy"]
@@ -98,6 +99,26 @@ pub(super) fn kasan_unpoison(addr: usize, size: usize) {
             *(tail_shadow as *mut u8) = rem as u8;
         }
     }
+}
+
+/// Poisons `nr_pages` contiguous physical frames starting at `vaddr` with
+/// [`KASAN_PAGE_FREE`], mirroring Linux's `kasan_free_pages()`.
+#[sanitize(address = "off")]
+pub(in crate::mm) fn poison_pages(vaddr: Vaddr, nr_pages: usize) {
+    let Some(size) = nr_pages.checked_mul(PAGE_SIZE) else {
+        return;
+    };
+    kasan_poison(vaddr, size, KASAN_PAGE_FREE);
+}
+
+/// Unpoisons `nr_pages` contiguous physical frames starting at `vaddr`,
+/// mirroring Linux's `kasan_unpoison_pages()`.
+#[sanitize(address = "off")]
+pub(in crate::mm) fn unpoison_pages(vaddr: Vaddr, nr_pages: usize) {
+    let Some(size) = nr_pages.checked_mul(PAGE_SIZE) else {
+        return;
+    };
+    kasan_unpoison(vaddr, size);
 }
 
 #[sanitize(address = "off")]

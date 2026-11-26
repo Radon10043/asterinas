@@ -58,6 +58,9 @@ impl FrameAllocOptions {
             .map(|paddr| Frame::from_unused(paddr, metadata).unwrap())
             .ok_or(Error::NoMemory)?;
 
+        #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+        crate::mm::kasan::unpoison_pages(paddr_to_vaddr(frame.paddr()), 1);
+
         if self.zeroed {
             let addr = paddr_to_vaddr(frame.paddr()) as *mut u8;
             // SAFETY: The newly allocated frame is guaranteed to be valid.
@@ -94,6 +97,9 @@ impl FrameAllocOptions {
                 Segment::from_unused(start..start + nframes * PAGE_SIZE, metadata_fn).unwrap()
             })
             .ok_or(Error::NoMemory)?;
+
+        #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+        crate::mm::kasan::unpoison_pages(paddr_to_vaddr(segment.paddr()), nframes);
 
         if self.zeroed {
             let addr = paddr_to_vaddr(segment.paddr()) as *mut u8;

@@ -230,6 +230,10 @@ impl MetaSlot {
     ///
     /// The resulting reference count held by the returned pointer is
     /// [`REF_COUNT_UNIQUE`] if `as_unique_ptr` is `true`, otherwise `1`.
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     pub(super) fn get_from_unused<M: AnyFrameMeta>(
         paddr: Paddr,
         metadata: M,
@@ -389,6 +393,10 @@ impl MetaSlot {
     /// The caller should ensure that:
     ///  - the reference count is `0` (so we are the sole owner of the frame);
     ///  - the metadata is initialized;
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     pub(super) unsafe fn drop_last_in_place(&self) {
         // This should be guaranteed as a safety requirement.
         debug_assert_eq!(self.ref_count.load(Ordering::Relaxed), 0);
@@ -453,6 +461,10 @@ impl_frame_meta_for!(MetaPageMeta);
 ///
 /// This function should be called only once and only on the BSP,
 /// before any APs are started.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub(crate) unsafe fn init() -> Segment<MetaPageMeta> {
     let paddr_range = {
         let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
@@ -538,6 +550,10 @@ fn tracked_paddr_range(regions: &[MemoryRegion]) -> Range<Paddr> {
     min_paddr.align_down(META_PAGE_COVERAGE)..max_paddr
 }
 
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 fn alloc_meta_frames(tot_nr_frames: usize) -> (usize, Paddr) {
     let nr_meta_pages = tot_nr_frames
         .checked_mul(size_of::<MetaSlot>())
@@ -625,6 +641,7 @@ fn mark_unusable_ranges() {
 /// physical memory is huge we end up depleted of linear virtual memory for
 /// initializing metadata.
 #[cfg(target_arch = "x86_64")]
+#[cfg_attr(feature = "kasan", sanitize(address = "off"))]
 fn add_temp_linear_mapping(max_paddr: Paddr) {
     use crate::mm::kspace::LINEAR_MAPPING_BASE_VADDR;
 

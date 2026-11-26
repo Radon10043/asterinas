@@ -245,6 +245,10 @@ impl<M: AnyFrameMeta + ?Sized> HasSize for Frame<M> {
 }
 
 impl<M: AnyFrameMeta + ?Sized> Clone for Frame<M> {
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     fn clone(&self) -> Self {
         // SAFETY: We have already held a reference to the frame.
         unsafe { self.slot().inc_ref_count() };
@@ -257,6 +261,10 @@ impl<M: AnyFrameMeta + ?Sized> Clone for Frame<M> {
 }
 
 impl<M: AnyFrameMeta + ?Sized> Drop for Frame<M> {
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     fn drop(&mut self) {
         let last_ref_cnt = self.slot().ref_count.fetch_sub(1, Ordering::Release);
         debug_assert!(last_ref_cnt != 0 && last_ref_cnt != REF_COUNT_UNUSED);
@@ -268,6 +276,9 @@ impl<M: AnyFrameMeta + ?Sized> Drop for Frame<M> {
 
             // SAFETY: This is the last reference and is about to be dropped.
             unsafe { self.slot().drop_last_in_place() };
+
+            #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+            crate::mm::kasan::poison_pages(crate::mm::paddr_to_vaddr(self.paddr()), 1);
 
             allocator::get_global_frame_allocator().dealloc(self.paddr(), PAGE_SIZE);
         }
