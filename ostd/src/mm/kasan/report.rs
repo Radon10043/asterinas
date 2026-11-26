@@ -10,9 +10,10 @@ use super::{
     AccessType, KASAN_ALLOCA_LEFT, KASAN_ALLOCA_RIGHT, KASAN_GRANULE_MASK, KASAN_GRANULE_SIZE,
     KASAN_PAGE_FREE, KASAN_PAGE_REDZONE, KASAN_SHADOW_END, KASAN_SHADOW_INIT, KASAN_SHADOW_START,
     KASAN_SLAB_FREE, KASAN_SLAB_REDZONE, addr_has_metadata, align_down, cmpxchg_usize,
-    disable_for_report, mem_to_shadow, shadow, shadow_to_mem,
+    disable_for_report, load_usize_acquire, mem_to_shadow, shadow, shadow_to_mem,
 };
 use crate::{
+    console::{emergency_print, emergency_println},
     mm::{PAGE_SIZE, kspace},
     util::id_set::Id,
 };
@@ -20,8 +21,16 @@ use crate::{
 const SHADOW_BYTES_PER_ROW: usize = 16;
 const SHADOW_ROWS_AROUND_ADDR: usize = 2;
 const NO_REPORTING_CPU: usize = usize::MAX;
+const PEER_CONSOLE_DRAIN_SPINS: usize = 50_000;
 
 static REPORTING_CPU: AtomicUsize = AtomicUsize::new(NO_REPORTING_CPU);
+
+/// Returns whether any CPU is currently emitting a fatal KASAN report.
+#[inline]
+#[sanitize(address = "off")]
+pub(crate) fn is_reporting() -> bool {
+    load_usize_acquire(&REPORTING_CPU) != NO_REPORTING_CPU
+}
 
 /// Locates the first inaccessible byte within `[addr .. addr + size)`.
 ///
@@ -122,9 +131,14 @@ fn acquire_report_slot_or_halt(addr: usize, pc: usize) {
         Ok(_) => {
             // Disable nested KASAN checks before formatting or unwinding.
             disable_for_report();
+            // Give peer CPUs currently inside a serial write a brief window to
+            // observe `is_reporting()` and stop emitting bytes to COM1.
+            for _ in 0..PEER_CONSOLE_DRAIN_SPINS {
+                core::hint::spin_loop();
+            }
         }
         Err(owner) if owner == cpu_tag => {
-            crate::early_println!(
+            emergency_println!(
                 "BUG: KASAN: recursive fault while reporting on addr {:#x} (pc {:#x})",
                 addr,
                 pc
@@ -153,22 +167,22 @@ fn print_shadow_for_address(addr: usize) {
         .saturating_add((SHADOW_ROWS_AROUND_ADDR + 1) * SHADOW_BYTES_PER_ROW)
         .min(KASAN_SHADOW_END);
 
-    crate::early_println!("Memory state around the buggy address:");
+    emergency_println!("Memory state around the buggy address:");
     let mut row = start_row;
     while row < end_row {
         let marker = if row == center_row { ">" } else { " " };
-        crate::early_print!("{}{:#018x}:", marker, shadow_to_mem(row));
+        emergency_print!("{}{:#018x}:", marker, shadow_to_mem(row));
         for col in 0..SHADOW_BYTES_PER_ROW {
             let shadow_addr = row + col;
             // SAFETY: `[start_row .. end_row)` lies within `[KASAN_SHADOW_START, KASAN_SHADOW_END)`.
             let byte = unsafe { *(shadow_addr as *const u8) };
             if shadow_addr == bad_shadow {
-                crate::early_print!(" [{:02x}]", byte);
+                emergency_print!(" [{:02x}]", byte);
             } else {
-                crate::early_print!(" {:02x}", byte);
+                emergency_print!(" {:02x}", byte);
             }
         }
-        crate::early_println!();
+        emergency_println!();
         row += SHADOW_BYTES_PER_ROW;
     }
 }
@@ -185,9 +199,9 @@ pub(super) fn report_access_error(addr: usize, size: usize, access: AccessType, 
     };
     let cpu_id = crate::cpu::CpuId::current_racy().as_usize();
 
-    crate::early_println!("\n==================================================================");
-    crate::early_println!("BUG: KASAN: {} in {:#x}", bug_type, pc);
-    crate::early_println!(
+    emergency_println!("\n==================================================================");
+    emergency_println!("BUG: KASAN: {} in {:#x}", bug_type, pc);
+    emergency_println!(
         "{} of size {} at addr {:#x} by CPU {}",
         op_desc,
         size,
@@ -195,10 +209,10 @@ pub(super) fn report_access_error(addr: usize, size: usize, access: AccessType, 
         cpu_id
     );
     if pc != 0 {
-        crate::early_println!("KASAN: pc {:#x}", pc);
+        emergency_println!("KASAN: pc {:#x}", pc);
     }
-    crate::panic::print_stack_trace();
+    crate::panic::print_stack_trace_emergency();
     print_shadow_for_address(bad_addr);
-    crate::early_println!("==================================================================");
+    emergency_println!("==================================================================");
     crate::panic::abort();
 }

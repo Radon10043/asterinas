@@ -13,6 +13,10 @@ use ostd::sync::{LocalIrqDisabled, SpinLockGuard};
 
 /// Prints the formatted arguments to the standard output.
 pub fn _print(args: fmt::Arguments) {
+    if ostd::console::is_report_in_progress() {
+        return;
+    }
+
     // We must call `all_devices_lock` instead of `all_devices` here, as `all_devices` invokes the
     // `clone` method of `String` and `Arc`, which may lead to a deadlock when there is low memory
     // in the heap. (The heap allocator will log a message when memory is low.)

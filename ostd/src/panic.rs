@@ -84,6 +84,9 @@ impl PanicGuard {
 
 pub use unwinding::panic::{begin_panic, catch_unwind};
 
+/// Global lock serializing stack-trace output across CPUs.
+static BACKTRACE_PRINT_LOCK: crate::sync::SpinLock<()> = crate::sync::SpinLock::new(());
+
 /// Prints the stack trace of the current thread to the console.
 ///
 /// The printing procedure is protected by a spin lock to prevent interleaving.
@@ -92,6 +95,26 @@ pub use unwinding::panic::{begin_panic, catch_unwind};
     sanitize(address = "off")
 )]
 pub fn print_stack_trace() {
+    let _lock = BACKTRACE_PRINT_LOCK.lock();
+    print_stack_trace_with(crate::console::early_print);
+}
+
+/// Prints the stack trace using the lock-free emergency serial console.
+///
+/// Uses a non-blocking lock attempt so a KASAN fault occurring inside an active
+/// backtrace still prints instead of deadlocking.
+#[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+#[sanitize(address = "off")]
+pub(crate) fn print_stack_trace_emergency() {
+    let _lock = BACKTRACE_PRINT_LOCK.try_lock();
+    print_stack_trace_with(crate::console::emergency_print_args);
+}
+
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
+fn print_stack_trace_with(print_fn: fn(core::fmt::Arguments)) {
     use core::ffi::c_void;
 
     use gimli::Register;
@@ -100,17 +123,11 @@ pub fn print_stack_trace() {
         UnwindContext, UnwindReasonCode,
     };
 
-    use crate::{early_print, sync::SpinLock};
-
-    /// We acquire a global lock to prevent the frames in the stack trace from
-    /// interleaving. The spin lock is used merely for its simplicity.
-    static BACKTRACE_PRINT_LOCK: SpinLock<()> = SpinLock::new(());
-    let _lock = BACKTRACE_PRINT_LOCK.lock();
-
-    early_println!("Printing stack trace:");
+    print_fn(format_args!("Printing stack trace:\n"));
 
     struct CallbackData {
         counter: usize,
+        print_fn: fn(core::fmt::Arguments),
     }
     #[cfg_attr(
         all(feature = "kasan", target_arch = "x86_64"),
@@ -118,16 +135,15 @@ pub fn print_stack_trace() {
     )]
     extern "C" fn callback(unwind_ctx: &UnwindContext<'_>, arg: *mut c_void) -> UnwindReasonCode {
         let data = unsafe { &mut *(arg as *mut CallbackData) };
+        let print_fn = data.print_fn;
         data.counter += 1;
         let pc = _Unwind_GetIP(unwind_ctx);
         if pc > 0 {
             let fde_initial_address = _Unwind_FindEnclosingFunction(pc as *mut c_void) as usize;
-            early_println!(
-                "{:4}: fn {:#18x} - pc {:#18x} / registers:",
-                data.counter,
-                fde_initial_address,
-                pc,
-            );
+            print_fn(format_args!(
+                "{:4}: fn {:#18x} - pc {:#18x} / registers:\n",
+                data.counter, fde_initial_address, pc,
+            ));
         }
         // Print the first 8 general registers for any architecture. The register number follows
         // the DWARF standard.
@@ -141,14 +157,21 @@ pub fn print_stack_trace() {
             };
             let reg_val = _Unwind_GetGR(unwind_ctx, i as i32);
             if i.is_multiple_of(4) {
-                early_print!("\n    ");
+                print_fn(format_args!("\n    "));
             }
-            early_print!(" {} {:#18x};", reg_name.unwrap_or("unknown"), reg_val);
+            print_fn(format_args!(
+                " {} {:#18x};",
+                reg_name.unwrap_or("unknown"),
+                reg_val
+            ));
         }
-        early_print!("\n\n");
+        print_fn(format_args!("\n\n"));
         UnwindReasonCode::NO_REASON
     }
 
-    let mut data = CallbackData { counter: 0 };
+    let mut data = CallbackData {
+        counter: 0,
+        print_fn,
+    };
     _Unwind_Backtrace(callback, &mut data as *mut _ as _);
 }
