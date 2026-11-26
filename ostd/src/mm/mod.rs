@@ -28,6 +28,8 @@ mod test;
 
 use core::fmt::Debug;
 
+#[cfg(target_arch = "x86_64")]
+pub use self::kspace::kernel_text_range;
 pub use self::{
     frame::{
         Frame,

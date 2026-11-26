@@ -93,6 +93,19 @@ pub const MAX_USERSPACE_VADDR: Vaddr = (0x0000_0040_0000_0000 << ADDR_WIDTH_SHIF
 /// address space, with the most significant bits in the addresses set).
 pub const KERNEL_VADDR_RANGE: Range<Vaddr> = KERNEL_BASE_VADDR..KERNEL_END_VADDR;
 
+/// Returns the runtime virtual address range of executable kernel text.
+#[cfg(target_arch = "x86_64")]
+pub fn kernel_text_range() -> Range<Vaddr> {
+    // SAFETY: `__stext` and `__etext` are linker-defined boundary symbols
+    // marking the start and end of the `.text` section; only their addresses
+    // are taken.
+    unsafe extern "C" {
+        static __stext: u8;
+        static __etext: u8;
+    }
+    (&raw const __stext).addr()..(&raw const __etext).addr()
+}
+
 /// The offset from physical addresses to kernel image virtual addresses.
 ///
 /// On RISC-V, the bootstrap computes this offset from the actual load address.
