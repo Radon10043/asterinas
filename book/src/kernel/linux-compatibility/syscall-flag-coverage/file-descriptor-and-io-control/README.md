@@ -144,6 +144,11 @@ Supported functionality in SCML:
 {{#include ioctl.scml}}
 ```
 
+Notes:
+* KCOV ioctls (`KCOV_INIT_TRACE`, `KCOV_ENABLE`, and `KCOV_DISABLE`) are only supported on x86-64
+  when built with the `kcov` feature (`KCOV=1`),
+  and are exposed via `/dev/kcov` rather than Linux's `/sys/kernel/debug/kcov`.
+
 For more information,
 see [the man page](https://man7.org/linux/man-pages/man2/ioctl.2.html).
 

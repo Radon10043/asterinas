@@ -14,6 +14,9 @@ use crate::{
 };
 
 pub(super) fn handle_exception(ctx: &Context, user_ctx: &UserContext, exception: CpuException) {
+    #[cfg(feature = "kcov")]
+    let _kcov = ostd::kcov::enter_trace_scope();
+
     debug!("handle exception: {:#x?}", exception);
 
     if let Ok(page_fault_info) = PageFaultInfo::try_from(&exception) {

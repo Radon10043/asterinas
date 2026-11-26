@@ -51,5 +51,8 @@ ioctl(fd, op = BLKGETSIZE64 | BLKSSZGET, ..);
 // Control Trust Domain Extensions (TDX) guest devices
 ioctl(fd, op = TDX_CMD_GET_REPORT0, ..);
 
+// Control kernel coverage (KCOV) devices
+ioctl(fd, op = KCOV_INIT_TRACE | KCOV_ENABLE | KCOV_DISABLE, ..);
+
 // Control socket and network interface settings
 ioctl(fd, op = <socket_ops>, ..);
