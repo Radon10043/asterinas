@@ -262,6 +262,46 @@ write_l2pt_entry_\bits:
     add edi, 8
     loop write_l2pt_entry_\bits
 
+    .if {KASAN}
+    // L4PT: early KASAN shadow (0xffffec00_0000_0000 ~ 0xfffffc00_0000_0000,
+    // slots 472..504 = 0x1d8..0x1f8) mapped read-only to a shared zero page.
+    lea edi, [boot_l4pt + 0x1d8 * 8]
+    lea eax, [boot_kasan_l3pt + (PTE_PRESENT | PTE_WRITE)]
+    mov ecx, 32
+write_kasan_l4pt_entry_\bits:
+    mov dword ptr [edi], eax
+    mov dword ptr [edi + 4], 0
+    add edi, 8
+    loop write_kasan_l4pt_entry_\bits
+
+    lea edi, [boot_kasan_l3pt]
+    lea eax, [boot_kasan_l2pt + (PTE_PRESENT | PTE_WRITE)]
+    mov ecx, 512
+write_kasan_l3pt_entry_\bits:
+    mov dword ptr [edi], eax
+    mov dword ptr [edi + 4], 0
+    add edi, 8
+    loop write_kasan_l3pt_entry_\bits
+
+    lea edi, [boot_kasan_l2pt]
+    lea eax, [boot_kasan_l1pt + (PTE_PRESENT | PTE_WRITE)]
+    mov ecx, 512
+write_kasan_l2pt_entry_\bits:
+    mov dword ptr [edi], eax
+    mov dword ptr [edi + 4], 0
+    add edi, 8
+    loop write_kasan_l2pt_entry_\bits
+
+    lea edi, [boot_kasan_l1pt]
+    lea eax, [boot_kasan_zero_page + PTE_PRESENT]
+    mov ecx, 512
+write_kasan_l1pt_entry_\bits:
+    mov dword ptr [edi], eax
+    mov dword ptr [edi + 4], 0
+    add edi, 8
+    loop write_kasan_l1pt_entry_\bits
+    .endif
+
     ret
 .endm
 
@@ -310,6 +350,16 @@ boot_l2pt_2g_3g:
     .skip 4096
 boot_l2pt_3g_4g:
     .skip 4096
+    .if {KASAN}
+boot_kasan_l3pt:
+    .skip 4096
+boot_kasan_l2pt:
+    .skip 4096
+boot_kasan_l1pt:
+    .skip 4096
+boot_kasan_zero_page:
+    .skip 4096
+    .endif
 boot_page_table_end:
 
 .code64

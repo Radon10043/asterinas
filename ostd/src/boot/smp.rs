@@ -133,6 +133,10 @@ pub fn register_ap_entry(entry: fn()) {
 ///   assembly code, or via a thin Rust wrapper that does not access uninitialized AP states.
 /// - The caller must follow C calling conventions and put the right arguments in registers.
 // SAFETY: The name does not collide with other symbols.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 #[unsafe(no_mangle)]
 pub(crate) unsafe extern "C" fn ap_early_entry(cpu_id: u32) -> ! {
     // SAFETY:

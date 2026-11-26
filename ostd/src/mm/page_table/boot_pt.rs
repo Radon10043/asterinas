@@ -38,6 +38,10 @@ use crate::{
 ///
 /// The boot page table will be dropped when all CPUs have dismissed it.
 /// This function will return an [`Err`] if the boot page table is dropped.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub(crate) fn with_borrow<F, R>(f: F) -> Result<R, ()>
 where
     F: FnOnce(&mut BootPageTable) -> R,
@@ -70,6 +74,10 @@ where
 ///  - another legitimate page table is activated on this CPU;
 ///  - this function should be called only once per CPU;
 ///  - no [`with_borrow`] calls are performed on this CPU after this dismissal;
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub(crate) unsafe fn dismiss() {
     IS_DISMISSED.store(true);
     if DISMISS_COUNT.fetch_add(1, Ordering::AcqRel) as usize == num_cpus() - 1 {
@@ -129,6 +137,10 @@ impl<E: PteTrait, C: PagingConstsTrait> BootPageTable<E, C> {
     /// This function should be called only once in the initialization phase.
     /// Otherwise, It would lead to double-drop of the page table frames set up
     /// by the firmware, loader or the setup code.
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     unsafe fn from_current_pt() -> Self {
         let root_pt = crate::arch::mm::current_page_table_paddr();
         // Make sure the 2 available bits are not set for firmware page tables.
@@ -316,6 +328,10 @@ impl<E: PteTrait, C: PagingConstsTrait> BootPageTable<E, C> {
 ///
 /// Once leaving a page table frame, the closure will be called with the PTE to
 /// the frame.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 fn dfs_walk_on_leave<E: PteTrait, C: PagingConstsTrait>(
     pt: Paddr,
     level: PagingLevel,
@@ -330,6 +346,18 @@ fn dfs_walk_on_leave<E: PteTrait, C: PagingConstsTrait>(
             let mut pte = unsafe { pte_ptr.read() };
 
             if let PteScalar::PageTable(child_pt, flags) = pte.to_repr(level) {
+                // Early KASAN read-only shadow shares static boot page tables
+                // pointing to `boot_kasan_zero_page`. Skip descending into the
+                // shared DAG while still updating the top-level PTE.
+                #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+                if level == C::NR_LEVELS
+                    && crate::mm::kasan::KASAN_SHADOW_PML4_RANGE.contains(&offset)
+                {
+                    op(&mut pte, child_pt, level, flags);
+                    // SAFETY: The pointer to the entry is valid to write.
+                    unsafe { pte_ptr.write(pte) };
+                    continue;
+                }
                 dfs_walk_on_leave::<E, C>(child_pt, level - 1, op);
                 op(&mut pte, child_pt, level, flags);
                 // SAFETY: The pointer to the entry is valid to write.

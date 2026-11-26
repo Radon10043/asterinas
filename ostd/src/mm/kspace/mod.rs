@@ -13,7 +13,10 @@
 //! +-+ <- the highest used address (0xffff_ffff_ffff_0000)
 //! | |         For the kernel code, 1 GiB.
 //! +-+ <- 0xffff_ffff_8000_0000
-//! | |
+//! | |         Unused hole.
+//! +-+ <- 0xffff_fc00_0000_0000
+//! | |         For KASAN shadow memory, 16 TiB (when `kasan` is enabled).
+//! +-+ <- 0xffff_ec00_0000_0000
 //! | |         Unused hole.
 //! +-+ <- 0xffff_e100_0000_0000
 //! | |         For frame metadata, 1 TiB.
@@ -114,7 +117,7 @@ pub(crate) fn kernel_loaded_offset() -> usize {
 }
 
 #[cfg(target_arch = "x86_64")]
-const KERNEL_CODE_BASE_VADDR: usize = 0xffff_ffff_8000_0000;
+pub(super) const KERNEL_CODE_BASE_VADDR: usize = 0xffff_ffff_8000_0000;
 #[cfg(target_arch = "aarch64")]
 const KERNEL_CODE_BASE_VADDR: usize = 0xffff_ffff_0000_0000;
 #[cfg(target_arch = "loongarch64")]
@@ -233,6 +236,10 @@ pub(crate) enum MappedItemRef<'a> {
 ///
 /// This function should be called before:
 ///  - any initializer that modifies the kernel page table.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
     info!("Initializing the kernel page table");
 
@@ -262,7 +269,7 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
     }
 
     // Map the metadata pages.
-    {
+    let meta_range = {
         let start_va = mapping::frame_to_meta::<PagingConsts>(crate::mm::frame::min_paddr());
         let from = start_va..start_va + meta_pages.size();
         let prop = PageProperty {
@@ -283,13 +290,14 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
             // SAFETY: We are doing the metadata mappings for the kernel.
             unsafe { cursor.map(MappedItem::Untracked(pa, level, prop)) };
         }
-    }
+        from
+    };
 
     // In LoongArch64, we don't need to do linear mappings for the kernel code because of DMW0.
     #[cfg(not(target_arch = "loongarch64"))]
     // Map for the kernel code itself.
     // TODO: set separated permissions for each segments in the kernel.
-    {
+    let kernel_range = {
         let regions = &crate::boot::EARLY_INFO.get().unwrap().memory_regions;
         let region = regions
             .iter()
@@ -310,6 +318,16 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
             // SAFETY: We are doing the kernel code mapping.
             unsafe { cursor.map(MappedItem::Untracked(pa, level, prop)) };
         }
+        from
+    };
+
+    #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+    super::kasan::init_shadow(&kpt, &preempt_guard, meta_range, kernel_range);
+    #[cfg(not(all(feature = "kasan", target_arch = "x86_64")))]
+    {
+        let _ = meta_range;
+        #[cfg(not(target_arch = "loongarch64"))]
+        let _ = kernel_range;
     }
 
     KERNEL_PAGE_TABLE.call_once(|| kpt);
@@ -323,6 +341,10 @@ pub(crate) fn init_kernel_page_table(meta_pages: Segment<MetaPageMeta>) {
 /// # Safety
 ///
 /// This function must only be called once per CPU.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub(crate) unsafe fn activate_kernel_page_table() {
     let kpt = KERNEL_PAGE_TABLE
         .get()

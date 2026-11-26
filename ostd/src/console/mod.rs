@@ -9,6 +9,10 @@ use crate::arch::serial::SERIAL_PORT;
 pub mod uart_ns16650a;
 
 /// Prints formatted arguments to the console.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub fn early_print(args: Arguments) {
     let Some(serial) = SERIAL_PORT.get() else {
         return;

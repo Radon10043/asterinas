@@ -127,6 +127,10 @@ impl TrapFrameApi for TrapFrame {
 /// On the current CPU, this function must be called
 /// - only once and
 /// - before any trap can occur.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub(crate) unsafe fn init_on_cpu() {
     // SAFETY: Since there's no traps, no preemption can occur.
     unsafe { gdt::init_on_cpu() };

@@ -178,6 +178,10 @@ pub fn read_random() -> Option<u64> {
     None
 }
 
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub(crate) fn enable_cpu_features() {
     use cpu::extension::{IsaExtensions, has_extensions};
     use x86_64::registers::{

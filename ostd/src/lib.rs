@@ -9,6 +9,7 @@
 #![feature(negative_impls)]
 #![feature(ptr_metadata)]
 #![feature(sync_unsafe_cell)]
+#![cfg_attr(all(feature = "kasan", target_arch = "x86_64"), feature(sanitize))]
 #![cfg_attr(target_arch = "riscv64", feature(riscv_ext_intrinsics))]
 #![cfg_attr(target_arch = "x86_64", feature(iter_advance_by, macro_metavar_expr))]
 #![cfg_attr(target_arch = "aarch64", feature(iter_next_chunk))]
@@ -78,6 +79,10 @@ pub use self::{error::Error, prelude::Result};
 // TODO: We need to refactor this function to make it more modular and
 // make inter-initialization-dependencies more clear and reduce usages of
 // boot stage only global variables.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 unsafe fn init() {
     arch::enable_cpu_features();
 
@@ -115,6 +120,9 @@ unsafe fn init() {
 
     // SAFETY: This function is called only once on the BSP.
     unsafe { mm::kspace::activate_kernel_page_table() };
+
+    #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+    mm::kasan::enable();
 
     sync::init();
 
@@ -165,6 +173,9 @@ fn invoke_ffi_init_funcs() {
 }
 
 mod feature_validation {
+    #[cfg(all(not(target_arch = "x86_64"), feature = "kasan"))]
+    compile_error!("feature \"kasan\" cannot be specified for architectures other than x86_64");
+
     #[cfg(all(not(target_arch = "riscv64"), feature = "riscv_sv39_mode"))]
     compile_error!(
         "feature \"riscv_sv39_mode\" cannot be specified for architectures other than RISC-V"

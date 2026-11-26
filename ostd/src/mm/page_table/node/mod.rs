@@ -113,6 +113,10 @@ impl<C: PageTableConfig> PageTableNode<C> {
     ///
     /// It will not try dropping the last activate page table. It is the same
     /// with [`Self::activate()`] in other senses.
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     pub(super) unsafe fn first_activate(&self) {
         use crate::arch::mm::activate_page_table;
 

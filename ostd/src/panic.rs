@@ -10,6 +10,10 @@ extern crate gimli;
 ///
 /// The user can override it by defining their own panic handler with the macro
 /// `#[ostd::panic_handler]`.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 #[linkage = "weak"]
 // SAFETY: The name does not collide with other symbols.
 #[unsafe(no_mangle)]
@@ -36,6 +40,10 @@ pub fn __ostd_panic_handler(info: &core::panic::PanicInfo) -> ! {
 /// Aborts the system.
 ///
 /// This function will first attempt to power off the system. If that fails, it will halt all CPUs.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub fn abort() -> ! {
     // TODO: The main purpose of powering off here is to allow QEMU to exit. Otherwise, the CI may
     // freeze after panicking. However, this is unnecessary and may prevent debugging on a real
@@ -79,6 +87,10 @@ pub use unwinding::panic::{begin_panic, catch_unwind};
 /// Prints the stack trace of the current thread to the console.
 ///
 /// The printing procedure is protected by a spin lock to prevent interleaving.
+#[cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    sanitize(address = "off")
+)]
 pub fn print_stack_trace() {
     use core::ffi::c_void;
 
@@ -100,6 +112,10 @@ pub fn print_stack_trace() {
     struct CallbackData {
         counter: usize,
     }
+    #[cfg_attr(
+        all(feature = "kasan", target_arch = "x86_64"),
+        sanitize(address = "off")
+    )]
     extern "C" fn callback(unwind_ctx: &UnwindContext<'_>, arg: *mut c_void) -> UnwindReasonCode {
         let data = unsafe { &mut *(arg as *mut CallbackData) };
         data.counter += 1;
