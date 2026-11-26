@@ -48,11 +48,23 @@ impl Vmar {
                 let mut cur_cursor = cur_vmspace.cursor_mut(&preempt_guard, &range).unwrap();
 
                 // Protect the mapping and copy to the new page table for COW.
+                // Device mappings are always shared and keep their page flags in sync
+                // with `VmMapping::perms`, because write faults on read-only device
+                // pages are not upgraded.
                 cur_cursor.jump(base).unwrap();
                 new_cursor.jump(base).unwrap();
 
-                let num_copied =
-                    cow_copy_pt(&mut cur_cursor, &mut new_cursor, vm_mapping.map_size());
+                let copy_mode = if vm_mapping.is_device() {
+                    CopyMode::SharedDevice
+                } else {
+                    CopyMode::CopyOnWrite
+                };
+                let num_copied = copy_pt(
+                    &mut cur_cursor,
+                    &mut new_cursor,
+                    vm_mapping.map_size(),
+                    copy_mode,
+                );
 
                 // We need to ensure that no writes can be performed to COW
                 // pages only after `fork()` returns. So we can perform a full
@@ -71,14 +83,23 @@ impl Vmar {
     }
 }
 
-/// Sets mappings in the source page table as read-only to trigger COW, and
-/// copies the mappings to the destination page table.
+/// The policy for copying mapped RAM pages during `fork`.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum CopyMode {
+    /// Marks mapped RAM pages read-only in both page tables to trigger COW or
+    /// page-cache write tracking.
+    CopyOnWrite,
+    /// Preserves page flags for shared device mappings backed by RAM frames.
+    SharedDevice,
+}
+
+/// Copies page-table entries from `src` to `dst` across `size` bytes.
 ///
 /// The copied range starts from `src`'s current position with the given
 /// `size`. The destination range starts from `dst`'s current position.
 ///
-/// The number of physical frames copied is returned.
-fn cow_copy_pt(src: &mut CursorMut<'_>, dst: &mut CursorMut<'_>, size: usize) -> usize {
+/// The number of physical RAM frames copied is returned.
+fn copy_pt(src: &mut CursorMut<'_>, dst: &mut CursorMut<'_>, size: usize, mode: CopyMode) -> usize {
     let start_va = src.virt_addr();
     let end_va = start_va + size;
     let mut remain_size = size;
@@ -95,33 +116,37 @@ fn cow_copy_pt(src: &mut CursorMut<'_>, dst: &mut CursorMut<'_>, size: usize) ->
         };
         debug_assert_eq!(mapped_va, va.start);
 
-        match item {
-            VmQueriedItem::MappedRam { frame, mut prop } => {
+        dst.jump(mapped_va).unwrap();
+        let needs_manual_advance = match (item, mode) {
+            (VmQueriedItem::MappedRam { frame, mut prop }, CopyMode::CopyOnWrite) => {
                 let frame = (*frame).clone();
-
                 src.protect_next(end_va - mapped_va, op).unwrap();
-
-                dst.jump(mapped_va).unwrap();
                 op(&mut prop.flags, &mut prop.cache);
                 dst.map(frame, prop);
-
                 num_copied += 1;
+                false
             }
-            VmQueriedItem::MappedIoMem { paddr, prop } => {
-                // For MMIO pages, find the corresponding `IoMem` and map it
+            (VmQueriedItem::MappedRam { frame, prop }, CopyMode::SharedDevice) => {
+                dst.map((*frame).clone(), prop);
+                num_copied += 1;
+                true
+            }
+            (VmQueriedItem::MappedIoMem { paddr, prop }, _) => {
+                // For MMIO pages, find the corresponding `IoMem` and map it.
                 let (iomem, offset) = src.find_iomem_by_paddr(paddr).unwrap();
-                dst.jump(mapped_va).unwrap();
                 dst.map_iomem(iomem, prop, PAGE_SIZE, offset);
-
-                // Manually advance the source cursor.
-                // In the `MappedRam` case, the cursor is advanced by `protect_next`.
-                // However, this does not apply to the `MappedIoMem` case.
-                let next_va = mapped_va + PAGE_SIZE;
-                if next_va == end_va {
-                    break;
-                }
-                src.jump(next_va).unwrap();
+                true
             }
+        };
+
+        // `protect_next` already advances `src` in the `CopyOnWrite` RAM case;
+        // the other arms must advance `src` manually.
+        if needs_manual_advance {
+            let next_va = mapped_va + PAGE_SIZE;
+            if next_va == end_va {
+                break;
+            }
+            src.jump(next_va).unwrap();
         }
 
         remain_size = end_va - src.virt_addr();
@@ -139,6 +164,10 @@ mod test {
     };
 
     use super::*;
+
+    fn cow_copy_pt(src: &mut CursorMut<'_>, dst: &mut CursorMut<'_>, size: usize) -> usize {
+        copy_pt(src, dst, size, CopyMode::CopyOnWrite)
+    }
 
     #[ktest]
     fn cow_copy_pt_basic() {
@@ -398,6 +427,53 @@ mod test {
                 .query()
                 .unwrap(),
             (_, None)
+        ));
+    }
+
+    #[ktest]
+    fn shared_device_copy_pt_preserves_writable_ram() {
+        let vm_space = VmSpace::new();
+        let map_range = PAGE_SIZE..(PAGE_SIZE * 2);
+        let page_property = PageProperty::new_user(PageFlags::RW, CachePolicy::Writeback);
+        let preempt_guard = disable_preempt();
+
+        let frame = FrameAllocOptions::default().alloc_frame().unwrap();
+        let paddr = frame.paddr();
+        vm_space
+            .cursor_mut(&preempt_guard, &map_range)
+            .unwrap()
+            .map(frame.into(), page_property);
+
+        let child_space = VmSpace::new();
+        {
+            let mut child_cursor = child_space.cursor_mut(&preempt_guard, &map_range).unwrap();
+            let mut parent_cursor = vm_space.cursor_mut(&preempt_guard, &map_range).unwrap();
+            let num_copied = copy_pt(
+                &mut parent_cursor,
+                &mut child_cursor,
+                map_range.len(),
+                CopyMode::SharedDevice,
+            );
+            assert_eq!(num_copied, 1);
+        }
+
+        assert!(matches!(
+            vm_space
+                .cursor(&preempt_guard, &map_range)
+                .unwrap()
+                .query()
+                .unwrap(),
+            (va, Some(VmQueriedItem::MappedRam { frame, prop }))
+                if va.start == map_range.start && frame.paddr() == paddr && prop.flags == PageFlags::RW
+        ));
+        assert!(matches!(
+            child_space
+                .cursor(&preempt_guard, &map_range)
+                .unwrap()
+                .query()
+                .unwrap(),
+            (va, Some(VmQueriedItem::MappedRam { frame, prop }))
+                if va.start == map_range.start && frame.paddr() == paddr && prop.flags == PageFlags::RW
         ));
     }
 }

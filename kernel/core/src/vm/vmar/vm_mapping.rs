@@ -243,12 +243,16 @@ impl VmMapping {
         Ok(Some((Arc::downgrade(mapped_vmo.vmo()), offset)))
     }
 
+    /// Returns whether this mapping is backed by device memory.
+    pub(super) fn is_device(&self) -> bool {
+        matches!(self.mapped_mem, MappedMemory::Device(_))
+    }
+
     /// Returns whether this mapping can be expanded.
     ///
-    /// Device mappings cannot be expanded as they represent fixed-size MMIO
-    /// regions.
+    /// Device mappings cannot be expanded as they represent fixed-size regions.
     pub(super) fn can_expand(&self) -> bool {
-        !matches!(self.mapped_mem, MappedMemory::Device(_))
+        !self.is_device()
     }
 
     /// Prints the mapping information in the format of `/proc/[pid]/maps`.
@@ -851,7 +855,7 @@ impl VmMapping {
         //    before doing so.
         //  - For shared mappings, the page may need to be marked as a dirty
         //    page in the page cache.
-        let new_flags = if matches!(self.mapped_mem, MappedMemory::Device(_)) {
+        let new_flags = if self.is_device() {
             PageFlags::from(perms)
         } else {
             PageFlags::from(perms) - PageFlags::W
