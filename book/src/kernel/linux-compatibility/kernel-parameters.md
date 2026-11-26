@@ -228,3 +228,22 @@ i8042.exist
 i8042.exist=1
 i8042.exist=0
 ```
+
+### `kasan_selftest`
+
+Run a boot-time KernelAddressSanitizer (KASAN) diagnostic selftest during
+kernel initialization (only available on `x86_64` kernels built with `KASAN=1`).
+
+Supported values:
+- `shadow` — non-fatal check of shadow translation, heap redzones, quarantine,
+  and physical frame free poisoning
+- `oob` — trigger a slab right out-of-bounds write
+- `partial` — trigger a partial-granule out-of-bounds write
+- `uaf` — trigger a heap slab use-after-free read
+- `df` — trigger a heap double-free
+- `page-uaf` — trigger a freed physical page use-after-free read
+
+Example:
+```text
+kasan_selftest=shadow
+```

@@ -23,7 +23,10 @@ mod heap;
 mod init;
 mod quarantine;
 mod report;
+pub mod selftest;
 mod shadow;
+#[cfg(ktest)]
+mod test;
 
 use core::sync::atomic::{AtomicBool, AtomicUsize};
 

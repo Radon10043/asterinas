@@ -9,7 +9,10 @@
 #![feature(negative_impls)]
 #![feature(ptr_metadata)]
 #![feature(sync_unsafe_cell)]
-#![cfg_attr(all(feature = "kasan", target_arch = "x86_64"), feature(sanitize))]
+#![cfg_attr(
+    all(feature = "kasan", target_arch = "x86_64"),
+    feature(cfg_sanitize, sanitize)
+)]
 #![cfg_attr(target_arch = "riscv64", feature(riscv_ext_intrinsics))]
 #![cfg_attr(target_arch = "x86_64", feature(iter_advance_by, macro_metavar_expr))]
 #![cfg_attr(target_arch = "aarch64", feature(iter_next_chunk))]

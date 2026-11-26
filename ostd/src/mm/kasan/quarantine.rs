@@ -197,3 +197,18 @@ pub(in crate::mm) fn quarantine_drain() {
         release_batch(&mut batch, drained_len);
     }
 }
+
+/// Returns the current `(slot_count, total_bytes)` held in quarantine.
+#[cfg(ktest)]
+#[sanitize(address = "off")]
+pub(super) fn quarantine_stats() -> (usize, usize) {
+    let ring = QUARANTINE.lock();
+    (ring.count, ring.bytes)
+}
+
+/// Returns the configured quarantine byte budget.
+#[cfg(ktest)]
+#[sanitize(address = "off")]
+pub(super) fn quarantine_max_bytes() -> usize {
+    load_usize_relaxed(&QUARANTINE_BYTE_LIMIT)
+}

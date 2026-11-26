@@ -17,7 +17,7 @@ pub mod frame;
 pub mod heap;
 pub mod io;
 #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
-pub(crate) mod kasan;
+pub mod kasan;
 pub(crate) mod kspace;
 pub(crate) mod mem_obj;
 pub(crate) mod page_prop;

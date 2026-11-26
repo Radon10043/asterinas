@@ -45,7 +45,17 @@ pub(super) fn on_first_process_startup(ctx: &Context) {
     crate::fs::init_in_first_process(ctx);
 }
 
+#[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+static KASAN_SELFTEST: Once<String> = Once::new();
+#[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+aster_cmdline::define_kv_param!("kasan_selftest", KASAN_SELFTEST);
+
 fn init() {
+    #[cfg(all(feature = "kasan", target_arch = "x86_64"))]
+    if let Some(mode) = KASAN_SELFTEST.get() {
+        ostd::mm::kasan::selftest::run(mode);
+    }
+
     crate::power::init();
     crate::arch::init();
     crate::thread::init();
