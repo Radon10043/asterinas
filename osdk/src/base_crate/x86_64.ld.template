@@ -95,8 +95,14 @@ SECTIONS
 # --------------------------------------------------------------------------- #
     . = LOADADDR(.ap_boot) + SIZEOF(.ap_boot) + KERNEL_VMA;
 
+    # Emit `_stext`/`_etext` unconditionally (without `PROVIDE`) to match Linux
+    # ELF conventions for external KCOV symbolizers, alongside `__stext`/
+    # `__etext` consumed by `ostd::mm::kernel_text_range`.
     .text                   : AT(ADDR(.text) - KERNEL_VMA) {
+        _stext = .;
+        __stext = .;
         *(.text .text.*)
+        _etext = .;
         PROVIDE(__etext = .);
     } : text
 
