@@ -20,6 +20,7 @@ OSTD_TASK_STACK_SIZE_IN_PAGES ?= 64
 FEATURES ?=
 NO_DEFAULT_FEATURES ?= 0
 COVERAGE ?= 0
+KASAN ?= 0
 INITRAMFS ?= on
 CMDLINE ?=
 
@@ -228,6 +229,26 @@ endif
 
 ifeq ($(COVERAGE), 1)
 CARGO_OSDK_COMMON_ARGS += --coverage
+endif
+
+KASAN_RUSTC_WRAPPER := $(CURDIR)/tools/kasan-rustc.sh
+ifeq ($(KASAN), 1)
+ifneq ($(TARGET_ARCH), x86_64)
+$(error KASAN=1 is only supported when TARGET_ARCH=x86_64)
+endif
+ifeq ($(RELEASE_LTO), 1)
+$(error KASAN=1 is incompatible with RELEASE_LTO=1)
+endif
+ifneq ($(RUSTC_WRAPPER),)
+ifneq ($(RUSTC_WRAPPER),$(KASAN_RUSTC_WRAPPER))
+$(error KASAN=1 requires exclusive control of RUSTC_WRAPPER (currently '$(RUSTC_WRAPPER)'))
+endif
+endif
+export RUSTC_WRAPPER := $(KASAN_RUSTC_WRAPPER)
+export CARGO_PROFILE_DEV_LTO := false
+export CARGO_PROFILE_RELEASE_LTO := false
+CARGO_OSDK_BUILD_ARGS += --features=kasan
+CARGO_OSDK_TEST_ARGS += --features=ostd/kasan
 endif
 
 ifdef FEATURES
