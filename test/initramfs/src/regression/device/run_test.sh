@@ -28,6 +28,7 @@ set -e
 ./framebuffer
 ./full
 ./hwrng
+./kcov
 ./nvme
 ./random
 ./uevent
