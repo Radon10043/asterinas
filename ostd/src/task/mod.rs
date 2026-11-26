@@ -71,6 +71,9 @@ pub struct Task {
     switched_to_cpu: AtomicBool,
 
     schedule_info: TaskScheduleInfo,
+
+    #[cfg(feature = "kcov")]
+    kcov: crate::kcov::TaskKcov,
 }
 
 impl Task {
@@ -123,6 +126,11 @@ impl Task {
     /// Get the attached scheduling information.
     pub fn schedule_info(&self) -> &TaskScheduleInfo {
         &self.schedule_info
+    }
+
+    #[cfg(feature = "kcov")]
+    pub(crate) fn kcov(&self) -> &crate::kcov::TaskKcov {
+        &self.kcov
     }
 }
 
@@ -201,6 +209,9 @@ impl TaskOptions {
                 .expect("task function is `None` when trying to run");
             task_func();
 
+            #[cfg(feature = "kcov")]
+            crate::kcov::disable_current();
+
             // Manually drop all the on-stack variables to prevent memory leakage!
             // This is needed because `scheduler::exit_current()` will never return.
             //
@@ -237,6 +248,8 @@ impl TaskOptions {
             schedule_info: TaskScheduleInfo {
                 cpu: AtomicCpuId::default(),
             },
+            #[cfg(feature = "kcov")]
+            kcov: crate::kcov::TaskKcov::new(),
         };
 
         Ok(new_task)

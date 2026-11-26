@@ -20,6 +20,9 @@ pub mod vm;
 #[cfg(feature = "cvm_guest")]
 pub(crate) mod tdx_guest;
 
+#[cfg(feature = "kcov")]
+mod kcov;
+
 #[cfg(feature = "cvm_guest")]
 use crate::mm::frame::unaccepted;
 

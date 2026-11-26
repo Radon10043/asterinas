@@ -48,6 +48,9 @@ pub(super) fn switch_to_task(next_task: Arc<Task>) {
 
     let irq_guard = crate::irq::disable_local();
 
+    #[cfg(feature = "kcov")]
+    crate::kcov::prepare_switch();
+
     before_switching_to(&next_task, &irq_guard);
 
     // `before_switching_to` guarantees that from now on, and while the next task is running on the
@@ -142,6 +145,12 @@ pub(super) unsafe fn after_switching_to() {
 
     // See `switch_to_task`, where we forgot an IRQ guard.
     crate::arch::irq::enable_local();
+
+    // Defer clearing the KCOV context-switch marker until after `prev` is
+    // dropped so exiting-task teardown does not record into the incoming task,
+    // while still clearing the marker if `drop(prev)` unwinds.
+    #[cfg(feature = "kcov")]
+    let _kcov_switch_guard = crate::kcov::FinishSwitchGuard;
 
     // It was forgotten using `Arc::into_raw` at `switch_to_task`.
     // We drop it after enabling the IRQ in case dropping user-provided

@@ -39,6 +39,8 @@ pub mod cpu;
 mod error;
 pub mod io;
 pub mod irq;
+#[cfg(feature = "kcov")]
+pub mod kcov;
 pub mod log;
 pub mod mm;
 pub mod panic;
@@ -169,6 +171,9 @@ mod feature_validation {
     compile_error!(
         "feature \"riscv_sv39_mode\" cannot be specified for architectures other than RISC-V"
     );
+
+    #[cfg(all(not(target_arch = "x86_64"), feature = "kcov"))]
+    compile_error!("feature \"kcov\" cannot be specified for architectures other than x86-64");
 }
 
 /// Simple unit tests for the ktest framework.
