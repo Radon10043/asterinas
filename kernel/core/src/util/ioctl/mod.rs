@@ -308,12 +308,21 @@ macro_rules! impl_get_by_val_for {
                     self.arg as $ty
                 }
             }
+
+            impl<const MAGIC: u8, const NR: u8, const IS_MODERN: bool>
+                Ioctl<MAGIC, NR, IS_MODERN, OutData<$ty, PassByVal>>
+            {
+                /// Gets the ioctl argument.
+                pub fn get(&self) -> $ty {
+                    self.arg as $ty
+                }
+            }
         )*
     };
 }
 
 // We can add more types as needed, e.g., `i8`.
-impl_get_by_val_for! { i32 u32 }
+impl_get_by_val_for! { i32 u32 usize }
 
 impl DataSpec for InData<[u8]> {
     const SIZE: Option<u16> = None;
@@ -334,20 +343,25 @@ impl<const MAGIC: u8, const NR: u8, const IS_MODERN: bool>
     }
 }
 
-/// Output-only data, always passed by pointer.
-pub struct OutData<T: ?Sized>(PhantomData<T>);
+/// Output-only data.
+///
+/// `T` describes the data type.
+/// `P` describes how the data is passed (by pointer by default, or by value
+/// for Linux ioctls such as `KCOV_INIT_TRACE` that encode `_IOR` while passing
+/// an integer argument directly).
+pub struct OutData<T: ?Sized, P = PassByPtr>(PhantomData<T>, PhantomData<P>);
 
-impl<T> DataSpec for OutData<T> {
+impl<T, P> DataSpec for OutData<T, P> {
     const SIZE: Option<u16> = Some(u16_size_of::<T>());
     const DIR: IoctlDir = IoctlDir::Read;
 }
 
-impl<T> PtrDataSpec for OutData<T> {
+impl<T> PtrDataSpec for OutData<T, PassByPtr> {
     type Pointee = T;
 }
 
 impl<const MAGIC: u8, const NR: u8, const IS_MODERN: bool, T: Pod>
-    Ioctl<MAGIC, NR, IS_MODERN, OutData<T>>
+    Ioctl<MAGIC, NR, IS_MODERN, OutData<T, PassByPtr>>
 {
     /// Writes the ioctl argument to userspace.
     pub fn write(&self, val: &T) -> Result<()> {
@@ -409,9 +423,9 @@ impl<const MAGIC: u8, const NR: u8, const IS_MODERN: bool, T: Pod>
     }
 }
 
-/// A marker that denotes the input is passed by value (i.e., encoded in the ioctl argument).
+/// A marker that denotes the data is passed by value (i.e., encoded in the ioctl argument).
 pub enum PassByVal {}
-/// A marker that denotes the input is passed by pointer (i.e., pointed to by the ioctl argument).
+/// A marker that denotes the data is passed by pointer (i.e., pointed to by the ioctl argument).
 pub enum PassByPtr {}
 
 const fn u16_size_of<T>() -> u16 {
@@ -720,5 +734,20 @@ mod test {
                 buffer_length: 0x3FFF
             })
         );
+    }
+
+    #[ktest]
+    fn pass_by_val_usize() {
+        type InitTrace = ioc!(KCOV_INIT_TRACE, b'c', 1, OutData<usize, PassByVal>);
+        type Enable = ioc!(KCOV_ENABLE, 0x6364, InData<usize, PassByVal>);
+
+        let init_cmd =
+            (2u32 << 30) | ((size_of::<usize>() as u32) << 16) | ((b'c' as u32) << 8) | 1;
+        let init = InitTrace::try_from_raw(RawIoctl::new(init_cmd, 4096)).unwrap();
+        assert_eq!(init.get(), 4096);
+        assert!(InitTrace::try_from_raw(RawIoctl::new(0x4008_6301, 4096)).is_none());
+
+        let enable = Enable::try_from_raw(RawIoctl::new(0x6364, 1)).unwrap();
+        assert_eq!(enable.get(), 1);
     }
 }
